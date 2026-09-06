@@ -25,8 +25,7 @@ public static class ValidationScopeDeriver
     }
 
     /// <summary>
-    /// Derives a tool-specific rule set from a candidate rule collection, keeping only rules
-    /// applicable to the base scope's resolved AppType/standards, and excluding any rule marker
+    /// Derives a tool-specific rule set from a candidate rule collection, excluding any rule marker
     /// already skipped for this repository (repo-local skip/exclusion addendum).
     /// </summary>
     public static IReadOnlyList<TRule> DeriveRules<TRule>(
