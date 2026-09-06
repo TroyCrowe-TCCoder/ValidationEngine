@@ -12,11 +12,7 @@
     "automationRunbookReceivers": [],
     "azureAppPushReceivers": [],
     "azureFunctionReceivers": [],
-    "emailReceivers": [
-      {
-        "emailAddress": "tcrowe@singlesourcemanagement.com",
-        "name": "TroyCrowe",
-        "status": "Enabled",
+        "emailAddress": "<redacted>",
         "useCommonAlertSchema": true
       }
     ],
