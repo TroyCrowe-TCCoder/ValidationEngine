@@ -17,10 +17,15 @@ public sealed class ApplicabilityMatrixReader
             }
 
             var fields = SplitCsvLine(line);
+            if (fields.Count < 5)
+            {
+                throw new InvalidDataException($"Applicability matrix line has {fields.Count} field(s); expected at least 5: '{line}'.");
+            }
+
             entries.Add(new ApplicabilityEntry
             {
-                StandardFile = fields[0],
-                MarkerBase = fields[1],
+                StandardFile = fields[0].Trim(),
+                MarkerBase = fields[1].Trim(),
                 WebAppWebApi = ParseStatus(fields[2]),
                 Database = ParseStatus(fields[3]),
                 ClassLibrary = ParseStatus(fields[4])
