@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="ValidationEngine.Agent.Tests/ValidationEngine.Agent.Tests.csproj" Id="9029393c-eea7-4a8c-98ae-ea2b275e5242" />
+  <Project Path="ValidationEngine.Agent\ValidationEngine.Agent.csproj" Id="c53fbcab-88a0-4f23-b87b-90f6744645b1" />
+  <Project Path="ValidationEngine.Analyzers.Tests/ValidationEngine.Analyzers.Tests.csproj" Id="c4f3b2cf-9f78-41ab-bdb2-8a72f411e380" />
+  <Project Path="ValidationEngine.Analyzers\ValidationEngine.Analyzers.csproj" Id="37b7a9c9-99d9-40ec-8595-b71b90922086" />
+  <Project Path="ValidationEngine.Link.Tests/ValidationEngine.Link.Tests.csproj" Id="5d4a17d5-2449-4c67-bd70-cef0d44f1ce6" />
+  <Project Path="ValidationEngine.Link\ValidationEngine.Link.csproj" Id="e403d44b-91d3-430c-88dd-939b753c5c6f" />
+  <Project Path="ValidationEngine.Models\ValidationEngine.Models.csproj" Id="8b3f2f1a-3a2f-4b8a-9c1e-2f6b8a2d1c3e" />
+  <Project Path="ValidationEngine.Reporting\ValidationEngine.Reporting.csproj" Id="1d4e9c6f-7b2a-4e3d-9f5c-6a8b1d2e3f4a" />
+  <Project Path="ValidationEngine.Tests/ValidationEngine.Tests.csproj" Id="274ff9d3-e059-4a9a-8404-a541fa6bc5a2" />
+  <Project Path="ValidationEngine\ValidationEngine.csproj" Id="50893c82-320f-4dce-8811-53b57dafd21a" />
+</Solution>

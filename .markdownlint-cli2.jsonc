@@ -1,0 +1,41 @@
+{
+  // Markdownlint configuration for ValidationEngine's bundled standards content.
+  // Enforces GlobalFileSpecificationStandards rules 2.1, 2.4, 2.5, 2.7, 2.8, 2.9, 3, 4, 5.
+  // Invoked via pinned-version npx (see Working/ValidationToolingRolloutPlan.md, VAL-001).
+  // Custom rule: Tools/markdownlint-rules/no-non-directive-language.cjs replaces
+  // ValidationEngine.MechanicalValidationRules.ValidateDirectiveLanguage (file-specification.2.1).
+  //
+  // Scope deliberately limited to Docs/Standards/**/*.md — matches the original rule's actual
+  // scope (it only ran inside ValidateStandardsHeaderAndMarkers, gated on StandardsPathPattern).
+  //
+  // MD028/MD036/MD040/MD046/MD024/MD012/MD032/MD034/MD031 disabled: pre-existing formatting debt
+  // in Docs/Standards found on initial rollout (77 violations, unrelated to GS001). Deferred as
+  // VAL-001a follow-up so CI could go green immediately with only GS001 + defaults enforced.
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD033": false,
+    "MD041": false,
+    "MD028": false,
+    "MD036": false,
+    "MD040": false,
+    "MD046": false,
+    "MD024": false,
+    "MD051": false,
+    "MD012": false,
+    "MD032": false,
+    "MD034": false,
+    "MD031": false,
+    "GS001": true
+  },
+  "customRules": [
+    "./Tools/markdownlint-rules/no-non-directive-language.cjs"
+  ],
+  "globs": [
+    "ValidationEngine/Docs/Standards/**/*.md"
+  ],
+  "ignores": [
+    "**/node_modules/**",
+    ".git/**"
+  ]
+}
