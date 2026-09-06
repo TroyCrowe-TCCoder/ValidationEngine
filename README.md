@@ -110,20 +110,24 @@ Notes:
 - `Type` must currently be `AzureOpenAI` (see `ValidationEngine.Agent.Constants.ProviderTypes`).
 - Secrets (API keys) are never stored in `appsettings.json`. Each active provider resolves its
   key from an environment variable named after the provider's `Name` (e.g. `AzureOpenAI-Validation`).
-- If the file is missing entirely, the Agent reports an engine error. If the file exists but no
-  provider resolves to active, manual-only rules are reported as `AGT-001` ("not evaluated")
-  instead of being silently skipped.
+- `ValidationEngine.Agent` ships an `appsettings.json` template (empty `Providers` array) alongside
+  the tool; copy it to the target repository root and fill in provider details to opt in. If the
+  file is missing entirely, the Agent reports an engine error. If the file exists but no provider
+  resolves to active (e.g. the template's empty `Providers` array is left as-is), manual-only
+  rules are reported as `AGT-001` ("not evaluated") instead of being silently skipped.
 
 ## Standards Source
 
-The standards corpus is vendored directly into this repository under `Docs/Standards`. Those
+The standards corpus is vendored directly into this repository under `Docs/Standards` — no
+separate `GlobalStandards` repository or sibling clone is required to run validation. Those
 markdown files are the authoritative "fuel source" — human-readable and agent-readable rule
 definitions that drive both the deterministic and AI-assisted engines. They can be added to,
 edited, or removed independently of the engine code itself.
 
 By default, the engine resolves the standards root from `Docs/Standards` relative to the
-repository being validated. If you are validating a different repository, or you keep the
-standards corpus elsewhere, point the engine at it explicitly using one of, in priority order:
+repository being validated, which covers the common case out of the box. If you maintain a
+different standards corpus location for a specific repository, you can override the default
+using one of, in priority order:
 
 1. The `-GlobalStandardsRoot <path>` command-line argument.
 2. The `GLOBALSTANDARDS_ROOT` environment variable.
