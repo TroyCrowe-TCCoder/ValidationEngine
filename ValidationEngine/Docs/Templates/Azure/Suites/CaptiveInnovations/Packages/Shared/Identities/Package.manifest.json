@@ -1,0 +1,10 @@
+{
+  "packageName": "shared-identities",
+  "rolloutUnit": "shared",
+  "dependsOn": [],
+  "sourceArtifacts": [
+    "../../../source/shared/identities/arm/umi.CI-DevOps-UMI.resource.json",
+    "../../../source/shared/identities/arm/umi.CaptiveInnovations-UMI.resource.json",
+    "../../../source/shared/identity/arm/b2c.captiveinnovations.onmicrosoft.com.resource.json"
+  ]
+}

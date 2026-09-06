@@ -1,0 +1,48 @@
+stages:
+- stage: Build
+  displayName: Build
+  dependsOn: ChangeDetection
+  variables:
+    CodeChanges: $[ stageDependencies.ChangeDetection.Detect.outputs['setvar.CodeChanges'] ]
+  jobs:
+  - job: BuildLibrary
+    displayName: Restore, build, and pack
+    pool:
+      vmImage: ubuntu-latest
+    condition: eq(variables['CodeChanges'], 'true')
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: Use .NET SDK
+      inputs:
+        packageType: sdk
+        version: <dotNetSdkVersion>
+        includePreviewVersions: <includePreviewVersions>
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore packages
+      inputs:
+        command: restore
+        projects: $(projectPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Build library
+      inputs:
+        command: build
+        projects: $(projectPath)
+        arguments: --configuration $(buildConfiguration) --no-restore
+
+    - task: DotNetCoreCLI@2
+      displayName: Pack NuGet package
+      inputs:
+        command: pack
+        packagesToPack: $(projectPath)
+        configuration: $(buildConfiguration)
+        outputDir: $(packageOutputPath)
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish package artifact
+      inputs:
+        targetPath: $(packageOutputPath)
+        artifactName: $(buildPackageArtifactName)

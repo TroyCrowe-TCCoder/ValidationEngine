@@ -1,0 +1,43 @@
+variables:
+  buildConfiguration: 'Release'
+  dotNetSdkVersion: '<dotNetSdkVersion>'
+  includePreviewVersions: <includePreviewVersions>
+  solutionPath: '<solutionFileName>'
+  appProjectPath: '<appProjectRelativePath>'
+  testProjectPath: '<testProjectRelativePath>'
+  pipelineArtifactName: 'app-drop'
+  buildOutputArtifactName: 'build-output'
+  buildOutputPath: '$(Build.ArtifactStagingDirectory)/build-output'
+  publishOutputPath: '$(Build.ArtifactStagingDirectory)/app-drop'
+  devNextBranch: 'main'
+  azureServiceConnection: '<azureServiceConnectionName>'
+  appServiceName: '<appServiceName>'
+  resourceGroupName: '<resourceGroupName>'
+  deploymentSlotName: '<deploymentSlotName>'
+  # ADO Environment names follow the <resourcename>-<environment> standard.
+  # These are declared as literals in the deployment jobs (environment: keyword is
+  # evaluated at compile time and does not expand $() runtime macros); kept here for reference.
+  devEnvironmentName: '<appServiceName>-dev'
+  mainEnvironmentName: '<appServiceName>-prod'
+  slotHealthCheckUrl: '<slotHealthCheckUrl>'
+  healthCheckUrl: '<healthCheckUrl>'
+  healthCheckExpectedKeyword: '<healthCheckExpectedKeyword>'
+  # Attended runs (manual, out-of-window) favor a faster signal since a human is actively
+  # watching; unattended runs (the scheduled run) can afford to wait longer for a
+  # genuinely slow cold start with nobody watching.
+  verificationRetryCountAttended: '<verificationRetryCountAttended>'
+  verificationRetryCountUnattended: '<verificationRetryCountUnattended>'
+  verificationRetryDelaySeconds: '<verificationRetryDelaySeconds>'
+  verificationRequestTimeoutSeconds: '<verificationRequestTimeoutSeconds>'
+  deliveryWindowStartHourCst: '<deliveryWindowStartHour>'
+  deliveryWindowEndHourCst: '<deliveryWindowEndHour>'
+  mainReleasePipelinePath: '.azure-pipelines/Main/Main.yml'
+  # Retries for the swap/rollback ARM task calls themselves (transient ARM/App Service
+  # API faults), separate from the app-level health-check retries above.
+  # NOTE: retryCountOnTaskFailure on the swap/rollback tasks cannot expand this as a runtime
+  # $(variable) macro - it is a compile-time-only field - so the literal value is hardcoded
+  # at each usage site in Swap.yml and Rollback.yml. Keep this variable and those literals in sync.
+  slotSwapTaskRetryCount: '<slotSwapTaskRetryCount>'
+  # Webhook for Teams/Slack/etc. notifications on complete Swap or Rollback failure.
+  # Must be set as a secret pipeline/variable-group value before notifications are functional.
+  notificationWebhookUrl: ''

@@ -1,0 +1,10 @@
+{
+  "packageName": "shared-hosting",
+  "rolloutUnit": "shared",
+  "dependsOn": [
+    "../identities/package.manifest.json"
+  ],
+  "sourceArtifacts": [
+    "../../../source/shared/compute/arm/appserviceplan.CaptiveASP.resource.json"
+  ]
+}

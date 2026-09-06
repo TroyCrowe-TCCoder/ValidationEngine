@@ -1,0 +1,46 @@
+stages:
+- stage: Test
+  displayName: Test
+  dependsOn:
+  - ChangeDetection
+  - Build
+  condition: >-
+    and(
+      not(failed()),
+      not(canceled()),
+      eq(dependencies.ChangeDetection.outputs['Detect.setvar.CodeChanges'], 'true')
+    )
+  jobs:
+  - job: RunTests
+    displayName: Run unit tests
+    pool:
+      vmImage: windows-latest
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: Use .NET SDK
+      inputs:
+        packageType: sdk
+        version: $(dotNetSdkVersion)
+        includePreviewVersions: $(includePreviewVersions)
+
+    - task: DownloadPipelineArtifact@2
+      displayName: Download build output
+      inputs:
+        artifact: $(buildOutputArtifactName)
+        path: $(Build.SourcesDirectory)
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore test packages
+      inputs:
+        command: restore
+        projects: $(testProjectPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Run tests
+      inputs:
+        command: test
+        projects: $(testProjectPath)
+        arguments: --configuration $(buildConfiguration) --no-build --no-restore --verbosity normal
+        publishTestResults: true

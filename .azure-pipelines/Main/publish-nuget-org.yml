@@ -1,0 +1,82 @@
+# Gated public NuGet.org publish stage — publishes ValidationEngine.Models,
+# ValidationEngine.Reporting, and ValidationEngine.Analyzers to nuget.org under the
+# https://www.nuget.org/profiles/TC-Coder account.
+#
+# Gate enabled (publishToNuGetOrg: 'true' in ../Variables/variables.yml). Before the FIRST run:
+#   1. Manually confirm each PackageId (ValidationEngine.Models, ValidationEngine.Reporting,
+#      ValidationEngine.Analyzers) is available on nuget.org and does not collide with an
+#      existing package — package IDs cannot be reused/reassigned once claimed, even if unlisted.
+#   2. Create a nuget.org API key at https://www.nuget.org/account/apikeys, scoped to "Push new
+#      packages and package versions" and (once packages exist) restricted to these specific
+#      package IDs (nuget.org requires the package to exist before an ID-scoped key can target
+#      it, so the first push per package must use a key scoped to "*" or "push new").
+#   3. In Azure DevOps: Pipelines > Library > + Variable group, name it e.g. "NuGetOrgPublishing",
+#      add a secret variable NuGetOrgApiKey with that key's value, then link the variable group
+#      to this pipeline (Edit pipeline > Variables > Variable groups) so $(NuGetOrgApiKey) below
+#      resolves at run time. The agent needs this because the push itself runs on Azure Pipelines'
+#      hosted build agent, which has no nuget.org identity of its own — the key is the only way it
+#      can authenticate the push; it is never committed to source.
+#
+# This stage runs after and independently of the Azure Artifacts Publish stage — Azure Artifacts
+# remains the default, always-on internal feed regardless of this stage's gate.
+stages:
+- stage: PublishNuGetOrg
+  displayName: Publish to NuGet.org (gated)
+  dependsOn:
+  - ChangeDetection
+  - Publish
+
+  variables:
+    CodeChanges: $[ stageDependencies.ChangeDetection.Detect.outputs['setvar.CodeChanges'] ]
+  condition: and(succeeded(), eq(variables['CodeChanges'], 'true'), eq(variables['publishToNuGetOrg'], 'true'))
+  jobs:
+  - job: PublishPackagesPublic
+    displayName: Publish NuGet packages to NuGet.org
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: Use .NET SDK
+      inputs:
+        packageType: sdk
+        version: 10.0.x
+        includePreviewVersions: true
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore solution
+      inputs:
+        command: restore
+        projects: $(solutionPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Pack ValidationEngine.Models
+      inputs:
+        command: pack
+        packagesToPack: $(packableProject1)
+        configuration: $(buildConfiguration)
+        outputDir: $(packageOutputPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Pack ValidationEngine.Reporting
+      inputs:
+        command: pack
+        packagesToPack: $(packableProject2)
+        configuration: $(buildConfiguration)
+        outputDir: $(packageOutputPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Pack ValidationEngine.Analyzers
+      inputs:
+        command: pack
+        packagesToPack: $(packableProject3)
+        configuration: $(buildConfiguration)
+        outputDir: $(packageOutputPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Publish packages to NuGet.org
+      inputs:
+        command: custom
+        custom: nuget
+        arguments: push "$(packageOutputPath)/*.nupkg" --source "https://api.nuget.org/v3/index.json" --api-key $(NuGetOrgApiKey) --skip-duplicate

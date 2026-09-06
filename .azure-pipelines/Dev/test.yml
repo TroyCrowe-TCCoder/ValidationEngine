@@ -1,0 +1,36 @@
+stages:
+- stage: Test
+  displayName: Test
+  dependsOn:
+  - ChangeDetection
+  - Build
+  variables:
+    CodeChanges: $[ stageDependencies.ChangeDetection.Detect.outputs['setvar.CodeChanges'] ]
+  jobs:
+  - job: RunTests
+    displayName: Run unit tests
+    pool:
+      vmImage: ubuntu-latest
+    condition: eq(variables['CodeChanges'], 'true')
+    steps:
+    - checkout: self
+
+    - task: UseDotNet@2
+      displayName: Use .NET SDK
+      inputs:
+        packageType: sdk
+        version: 10.0.x
+        includePreviewVersions: true
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore test projects
+      inputs:
+        command: restore
+        projects: $(testSolutionPath)
+
+    - task: DotNetCoreCLI@2
+      displayName: Run tests
+      inputs:
+        command: test
+        projects: $(testSolutionPath)
+        arguments: --configuration $(buildConfiguration) --no-restore --verbosity normal

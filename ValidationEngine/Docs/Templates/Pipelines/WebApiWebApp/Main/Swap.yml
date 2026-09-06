@@ -1,0 +1,195 @@
+stages:
+- stage: Swap
+  displayName: Swap
+  dependsOn: ChangeDetection
+  variables:
+    CodeChanges: $[ dependencies.ChangeDetection.outputs['Detect.setvar.CodeChanges'] ]
+  condition: succeeded('ChangeDetection')
+  jobs:
+  - deployment: SwapSlotToLive
+    displayName: Swap deployment slot to live
+    environment: <mainEnvironmentName>
+    pool:
+      vmImage: windows-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Staging-artifact health is always checked FIRST, before CodeChanges or the delivery
+          # window are considered. Whether a build exists in staging is the authoritative signal
+          # for whether there is something to promote - a prior run may have left an artifact in
+          # staging without swapping it (e.g. it was stopped by the delivery window), independent
+          # of whether this specific run's commit range contained code changes.
+          - task: PowerShell@2
+            displayName: Verify deployment slot is healthy before swap
+            name: slothealth
+            inputs:
+              pwsh: true
+              targetType: inline
+              script: |
+                $slotUrl = '$(slotHealthCheckUrl)'
+                $expectedKw = '$(healthCheckExpectedKeyword)'
+                # Attended (manual/out-of-window) runs favor a faster failure signal; unattended
+                # (scheduled) runs can afford to wait longer for a genuinely slow cold start.
+                $maxAttempts = if ('$(Build.Reason)' -eq 'Manual') { [int]'$(verificationRetryCountAttended)' } else { [int]'$(verificationRetryCountUnattended)' }
+                $delaySeconds = [int]'$(verificationRetryDelaySeconds)'
+                $timeoutSeconds = [int]'$(verificationRequestTimeoutSeconds)'
+
+                for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+                  Write-Host "Slot health check attempt $attempt of $maxAttempts - $slotUrl"
+                  try {
+                    $response = Invoke-WebRequest -Uri $slotUrl -Method Get -TimeoutSec $timeoutSeconds -SkipHttpErrorCheck
+                    if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                      if (-not [string]::IsNullOrWhiteSpace($expectedKw) -and $response.Content -notmatch [regex]::Escape($expectedKw)) {
+                        Write-Host "Slot response did not contain expected keyword '$expectedKw'. Treating staging as empty/not ready."
+                        Write-Host '##vso[task.setvariable variable=SlotReady;isOutput=true]false'
+                        exit 0
+                      }
+                      Write-Host "Slot health check passed (HTTP $($response.StatusCode))."
+                      Write-Host '##vso[task.setvariable variable=SlotReady;isOutput=true]true'
+                      exit 0
+                    }
+                    Write-Host "Slot health check returned HTTP $($response.StatusCode)."
+                  }
+                  catch {
+                    Write-Host "Slot health check error: $($_.Exception.Message)"
+                  }
+
+                  if ($attempt -lt $maxAttempts) {
+                    Start-Sleep -Seconds $delaySeconds
+                  }
+                }
+
+                Write-Host "Deployment slot failed health check after $maxAttempts attempts. Treating staging as empty/not ready."
+                Write-Host '##vso[task.setvariable variable=SlotReady;isOutput=true]false'
+
+          # CodeChanges is used ONLY as a false-positive detector here: staging health is checked
+          # first (above); if staging has no artifact AND this promotion's commit range contained
+          # code changes, the Dev publish reported success without actually producing a deployable
+          # artifact - a real Dev pipeline defect that must block merge and be investigated, not
+          # silently skipped. If staging is empty and CodeChanges is false, that is expected and
+          # this step does not run at all.
+          - task: PowerShell@2
+            displayName: Verify artifact presence matches expected code changes
+            name: reconcile
+            condition: and(succeeded(), eq(variables['CodeChanges'], 'true'), eq(variables['slothealth.SlotReady'], 'false'))
+            inputs:
+              pwsh: true
+              targetType: inline
+              script: |
+                Write-Host '##vso[task.logissue type=error]Code changes were detected for this promotion, but no artifact is present in the staging slot. The Dev publish may have reported success without producing a deployable artifact. Blocking promotion until this is investigated.'
+                exit 1
+
+          # Notifies immediately when the reconcile check above hits the hard-stop condition:
+          # code changes were expected to have produced a staged artifact, but staging is empty.
+          # This is a real Dev-pipeline defect (a false positive on publish success), not a
+          # transient issue, so it needs a human's attention right away.
+          - task: PowerShell@2
+            displayName: Notify on missing artifact for expected code changes
+            # failed('stageName') only works for cross-stage conditions; within the same job,
+            # the no-argument form of failed() checks whether any previous step in this job
+            # failed, which is what we want here (the immediately preceding 'reconcile' step).
+            condition: failed()
+            inputs:
+              pwsh: true
+              targetType: inline
+              script: |
+                $webhookUrl = '$(notificationWebhookUrl)'
+                if ([string]::IsNullOrWhiteSpace($webhookUrl)) {
+                  Write-Host '##vso[task.logissue type=warning]notificationWebhookUrl is not configured - skipping failure notification. Configure this variable to enable alerts.'
+                }
+                else {
+                  $message = "STAGING ARTIFACT MISSING: code changes were detected for build $(Build.BuildNumber) (run $(Build.BuildId)), but no artifact is present in the staging slot. Dev publish may have reported success without producing a deployable artifact. Immediate attention required: https://dev.azure.com/$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+                  $body = @{ text = $message } | ConvertTo-Json
+                  Invoke-RestMethod -Uri $webhookUrl -Method Post -ContentType 'application/json' -Body $body | Out-Null
+                  Write-Host 'Missing-artifact notification sent.'
+                }
+
+          # The delivery window only gates PR-triggered runs. Manual runs bypass it entirely
+          # (per request), and scheduled runs are already timed to land inside the window, so
+          # there is no need to gate them here.
+          - task: PowerShell@2
+            displayName: Evaluate delivery window
+            name: settime
+            condition: and(succeeded(), eq(variables['slothealth.SlotReady'], 'true'))
+            inputs:
+              pwsh: true
+              targetType: inline
+              script: |
+                if ('$(Build.Reason)' -ne 'PullRequest') {
+                  Write-Host 'Non-PR run (manual or scheduled). Delivery window gate bypassed.'
+                  Write-Host '##vso[task.setvariable variable=InWindow;isOutput=true]true'
+                  exit 0
+                }
+
+                $centralNow = [TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTimeOffset]::UtcNow, '<deliveryWindowTimeZoneId>')
+                $hour = $centralNow.Hour
+                $windowStartHour = [int]'$(deliveryWindowStartHourCst)'
+                $windowEndHour = [int]'$(deliveryWindowEndHourCst)'
+
+                if ($windowStartHour -eq $windowEndHour) {
+                  $inWindow = $true
+                }
+                elseif ($windowStartHour -lt $windowEndHour) {
+                  $inWindow = $hour -ge $windowStartHour -and $hour -lt $windowEndHour
+                }
+                else {
+                  $inWindow = $hour -ge $windowStartHour -or $hour -lt $windowEndHour
+                }
+
+                Write-Host "##vso[task.setvariable variable=InWindow;isOutput=true]$($inWindow.ToString().ToLowerInvariant())"
+
+                if (-not $inWindow) {
+                  # An artifact is staged and ready, but the delivery window hasn't opened yet.
+                  # This is expected and correct - the pipeline did exactly what it should. The
+                  # swap task's own condition (InWindow == 'true') already prevents the swap from
+                  # running, so this task doesn't need to log an issue or fail. The result is set
+                  # to SucceededWithIssues (rather than plain Succeeded) purely so branch policy
+                  # still blocks PR auto-completion until an actual swap occurs - not because
+                  # anything went wrong. The scheduled run (or a manual run) will complete this
+                  # promotion later.
+                  Write-Host "Current time $($centralNow.ToString('yyyy-MM-dd HH:mm:ss zzz')) is outside the allowed deployment window. An artifact is staged and awaiting promotion; this run will not complete until a swap succeeds."
+                  Write-Host '##vso[task.complete result=SucceededWithIssues;]'
+                  exit 0
+                }
+
+                Write-Host "Current time $($centralNow.ToString('yyyy-MM-dd HH:mm:ss zzz')) is inside the allowed deployment window."
+
+          - task: AzureAppServiceManage@0
+            displayName: Swap slot to production
+            name: swaptoprod
+            # retryCountOnTaskFailure is evaluated at YAML compile time and cannot expand a
+            # runtime $(variable) macro - it must be a literal integer. Keep this in sync with
+            # slotSwapTaskRetryCount in Variables/Variables.yml.
+            retryCountOnTaskFailure: <slotSwapTaskRetryCount>
+            condition: and(succeeded(), eq(variables['slothealth.SlotReady'], 'true'), eq(variables['settime.InWindow'], 'true'))
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              Action: Swap Slots
+              WebAppName: $(appServiceName)
+              ResourceGroupName: $(resourceGroupName)
+              SourceSlot: $(deploymentSlotName)
+              SwapWithProduction: true
+
+          # Fires only when the swap task above failed after exhausting its retries. Notifies
+          # immediately so a human can address it - production may be left un-promoted (safe,
+          # but stale) or, if the swap partially applied, in an inconsistent state.
+          - task: PowerShell@2
+            displayName: Notify on complete swap failure
+            # failed('stepName') is invalid within the same job; the no-argument form checks
+            # whether any previous step in this job (i.e. the 'swaptoprod' step) failed.
+            condition: failed()
+            inputs:
+              pwsh: true
+              targetType: inline
+              script: |
+                $webhookUrl = '$(notificationWebhookUrl)'
+                if ([string]::IsNullOrWhiteSpace($webhookUrl)) {
+                  Write-Host '##vso[task.logissue type=warning]notificationWebhookUrl is not configured - skipping failure notification. Configure this variable to enable alerts.'
+                  exit 0
+                }
+
+                $message = "Swap to production FAILED after $(slotSwapTaskRetryCount) retries for build $(Build.BuildNumber) (run $(Build.BuildId)). Immediate attention required: https://dev.azure.com/$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)"
+                $body = @{ text = $message } | ConvertTo-Json
+                Invoke-RestMethod -Uri $webhookUrl -Method Post -ContentType 'application/json' -Body $body | Out-Null
+                Write-Host 'Swap failure notification sent.'

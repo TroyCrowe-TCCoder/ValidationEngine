@@ -1,0 +1,6 @@
+# Database (DACPAC) - production environment variables
+variables:
+  azureServiceConnection: '<azureServiceConnectionName>'
+  SqlResourceGroup: '<resourceGroupName>'
+  deliveryWindowStartHourCst: '<deliveryWindowStartHour>'
+  deliveryWindowEndHourCst: '<deliveryWindowEndHour>'

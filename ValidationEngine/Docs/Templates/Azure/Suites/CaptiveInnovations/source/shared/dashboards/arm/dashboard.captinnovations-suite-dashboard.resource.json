@@ -1,0 +1,59 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourceGroups/CaptiveInnovationsRG/providers/Microsoft.Portal/dashboards/captinnovations-suite-dashboard",
+  "identity": null,
+  "kind": null,
+  "location": "centralus",
+  "managedBy": null,
+  "name": "captinnovations-suite-dashboard",
+  "plan": null,
+  "properties": {
+    "lenses": [
+      {
+        "order": 0,
+        "parts": [
+          {
+            "metadata": {
+              "settings": {
+                "content": {
+                  "settings": {
+                    "content": "# CaptiveInnovations Suite Dashboard\n\nExecutive summary and navigation dashboard for the CaptiveInnovations application suite.\n\nDetailed application dashboards:\n- CaptiveDocumentManagerAPI Dashboard\n- CaptiveExpensesAPI Dashboard\n- CaptiveMessagingAPI Dashboard\n- CaptiveExpenses Dashboard\n\nUse this shared dashboard as the suite-level landing page and drill into the application dashboards for detailed investigation."
+                  }
+                }
+              },
+              "type": "Extension/HubsExtension/PartType/MarkdownPart"
+            },
+            "position": {
+              "colSpan": 12,
+              "rowSpan": 4,
+              "x": 0,
+              "y": 0
+            }
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "model": {
+        "filterLocale": {
+          "value": "en-us"
+        },
+        "timeRange": {
+          "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange",
+          "value": {
+            "relative": {
+              "duration": 24,
+              "timeUnit": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "resourceGroup": "CaptiveInnovationsRG",
+  "sku": null,
+  "tags": {
+    "hidden-title": "CaptiveInnovations Suite Dashboard"
+  },
+  "type": "Microsoft.Portal/dashboards"
+}

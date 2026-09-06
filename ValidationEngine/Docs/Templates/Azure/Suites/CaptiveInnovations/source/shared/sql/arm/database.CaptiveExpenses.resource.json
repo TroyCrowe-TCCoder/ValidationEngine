@@ -1,0 +1,59 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourceGroups/CaptiveInnovationsRG/providers/Microsoft.Sql/servers/captive-sql-server/databases/CaptiveExpenses",
+  "identity": {
+    "principalId": null,
+    "tenantId": null,
+    "type": "UserAssigned",
+    "userAssignedIdentities": {
+      "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourcegroups/CaptiveInnovationsRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/CaptiveInnovations-UMI": {
+        "clientId": "19b10e32-436b-42a3-8ba3-418dc1f69644",
+        "principalId": "e948a2ce-262e-468a-ab53-dd61f905b368"
+      }
+    }
+  },
+  "kind": "v12.0,user,pool",
+  "location": "centralus",
+  "managedBy": null,
+  "name": "CaptiveExpenses",
+  "plan": null,
+  "properties": {
+    "availabilityZone": "NoPreference",
+    "catalogCollation": "SQL_Latin1_General_CP1_CI_AS",
+    "collation": "SQL_Latin1_General_CP1_CI_AS",
+    "creationDate": "2024-11-08T03:48:26.107Z",
+    "currentBackupStorageRedundancy": "Geo",
+    "currentServiceObjectiveName": "ElasticPool",
+    "currentSku": {
+      "capacity": 0,
+      "name": "ElasticPool",
+      "tier": "Standard"
+    },
+    "databaseId": "e18f3577-60ca-47de-9df4-750c8c3d6323",
+    "defaultSecondaryLocation": "eastus2",
+    "earliestRestoreDate": "2026-05-13T19:42:57.4998299Z",
+    "elasticPoolId": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourceGroups/CaptiveInnovationsRG/providers/Microsoft.Sql/servers/captive-sql-server/elasticPools/CaptiveSQLPool",
+    "isInfraEncryptionEnabled": false,
+    "isLedgerOn": false,
+    "maintenanceConfigurationId": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/providers/Microsoft.Maintenance/publicMaintenanceConfigurations/SQL_CentralUS_DB_2",
+    "maxSizeBytes": 268435456000,
+    "readScale": "Disabled",
+    "requestedBackupStorageRedundancy": "Geo",
+    "requestedServiceObjectiveName": "ElasticPool",
+    "status": "Online",
+    "zoneRedundant": false
+  },
+  "resourceGroup": "CaptiveInnovationsRG",
+  "sku": {
+    "capacity": 0,
+    "family": null,
+    "model": null,
+    "name": "ElasticPool",
+    "size": null,
+    "tier": "Standard"
+  },
+  "tags": {
+    "Company": "SSM"
+  },
+  "type": "Microsoft.Sql/servers/databases"
+}

@@ -1,0 +1,36 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourceGroups/CaptiveInnovationsRG/providers/Microsoft.AzureActiveDirectory/b2cDirectories/captiveinnovations.onmicrosoft.com",
+  "identity": null,
+  "kind": null,
+  "location": "United States",
+  "managedBy": null,
+  "name": "captiveinnovations.onmicrosoft.com",
+  "plan": null,
+  "properties": {
+    "billingConfig": {
+      "billingType": "MAU",
+      "effectiveStartDateUtc": "1/1/0001 12:00:00 AM"
+    },
+    "tenantId": "d12b9b29-74bc-4bd4-938c-6bdd5db7f51a"
+  },
+  "resourceGroup": "CaptiveInnovationsRG",
+  "sku": {
+    "capacity": null,
+    "family": null,
+    "model": null,
+    "name": "PremiumP1",
+    "size": null,
+    "tier": "A0"
+  },
+  "systemData": {
+    "createdAt": null,
+    "createdBy": null,
+    "createdByType": null,
+    "lastModifiedAt": "2024-11-05T01:57:35.9189512Z",
+    "lastModifiedBy": "tcrowe@singlesourcemanagement.com",
+    "lastModifiedByType": "User"
+  },
+  "tags": null,
+  "type": "Microsoft.AzureActiveDirectory/b2cDirectories"
+}

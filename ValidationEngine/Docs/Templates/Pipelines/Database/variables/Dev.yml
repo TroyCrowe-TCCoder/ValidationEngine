@@ -1,0 +1,3 @@
+# Database (DACPAC) - dev environment variables
+variables:
+  buildConfiguration: 'Release'

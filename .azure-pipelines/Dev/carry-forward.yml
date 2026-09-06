@@ -1,0 +1,84 @@
+stages:
+- stage: CarryForward
+  displayName: CarryForward
+  dependsOn:
+  - ChangeDetection
+  - Build
+  - Test
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/dev'))
+  jobs:
+  - job: CreatePromotionPr
+    displayName: Create dev to main PR
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+      fetchDepth: 0
+
+    - task: PowerShell@2
+      displayName: Create carry-forward PR
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $ErrorActionPreference = 'Stop'
+
+          $orgUrl = '$(System.CollectionUri)'
+          $project = '$(System.TeamProject)'
+          $repoId = '$(Build.Repository.ID)'
+          $sourceBranch = 'dev'
+          $targetBranch = '$(devNextBranch)'
+          $sourceCommit = '$(Build.SourceVersion)'
+          $headers = @{
+            Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+            'Content-Type' = 'application/json'
+          }
+
+          $completedPrUrl = "${orgUrl}${project}/_apis/git/repositories/${repoId}/pullrequests?searchCriteria.status=completed&searchCriteria.targetRefName=refs/heads/dev&searchCriteria.lastMergeCommit=$sourceCommit&api-version=7.1"
+          $completedPrResponse = Invoke-RestMethod -Uri $completedPrUrl -Headers $headers -Method Get
+          $currentPr = $completedPrResponse.value | Select-Object -First 1
+
+          $prTitle = 'Promote dev to main'
+          $prDescription = "## Summary`n- promote the current dev branch state to main"
+
+          if ($null -ne $currentPr) {
+            if (-not [string]::IsNullOrWhiteSpace($currentPr.title)) {
+              $prTitle = $currentPr.title
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($currentPr.description)) {
+              $prDescription = $currentPr.description
+            }
+          }
+
+          git fetch origin $sourceBranch $targetBranch --depth=1 2>&1 | Out-Null
+          $aheadCount = git rev-list --count "origin/$targetBranch..origin/$sourceBranch"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Unable to compare $sourceBranch against $targetBranch."
+          }
+
+          if ([int]$aheadCount -le 0) {
+            Write-Host "No carry-forward PR needed because $sourceBranch is not ahead of $targetBranch."
+            exit 0
+          }
+
+          $openPrUrl = "${orgUrl}${project}/_apis/git/repositories/${repoId}/pullrequests?searchCriteria.status=active&searchCriteria.sourceRefName=refs/heads/$sourceBranch&searchCriteria.targetRefName=refs/heads/$targetBranch&api-version=7.1"
+          $openPrResponse = Invoke-RestMethod -Uri $openPrUrl -Headers $headers -Method Get
+          if ($openPrResponse.count -gt 0) {
+            $existingPr = $openPrResponse.value | Select-Object -First 1
+            Write-Host "Carry-forward PR already exists: #$($existingPr.pullRequestId)"
+            exit 0
+          }
+
+          $body = @{
+            title = $prTitle
+            description = $prDescription
+            sourceRefName = "refs/heads/$sourceBranch"
+            targetRefName = "refs/heads/$targetBranch"
+          } | ConvertTo-Json -Depth 5
+
+          $createPrUrl = "${orgUrl}${project}/_apis/git/repositories/${repoId}/pullrequests?api-version=7.1"
+          $newPr = Invoke-RestMethod -Uri $createPrUrl -Headers $headers -Method Post -Body $body
+          Write-Host "Created carry-forward PR #$($newPr.pullRequestId): $($newPr.url)"

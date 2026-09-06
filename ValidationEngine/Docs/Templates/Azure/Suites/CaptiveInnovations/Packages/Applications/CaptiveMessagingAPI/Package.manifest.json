@@ -1,0 +1,17 @@
+{
+  "packageName": "CaptiveMessagingAPI",
+  "rolloutUnit": "application",
+  "dependsOn": [
+    "../../shared/identities/package.manifest.json",
+    "../../shared/hosting/package.manifest.json",
+    "../../shared/monitoring/package.manifest.json",
+    "../../shared/key-vault/package.manifest.json"
+  ],
+  "sourceArtifacts": [
+    "../../../source/applications/CaptiveMessagingAPI/arm/site.CaptiveMessagingAPI.resource.json",
+    "../../../source/applications/CaptiveMessagingAPI/arm/slot.staging.resource.json",
+    "../../../source/applications/CaptiveMessagingAPI/arm/appinsights.CaptiveMessagingAPI.resource.json",
+    "../../../source/shared/monitoring/arm/smartdetector.CaptiveMessagingAPI.resource.json",
+    "../../../source/shared/dashboards/arm/dashboard.captivemessagingapi-dashboard-v2.resource.json"
+  ]
+}

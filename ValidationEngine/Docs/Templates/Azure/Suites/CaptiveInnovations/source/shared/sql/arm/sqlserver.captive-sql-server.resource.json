@@ -1,0 +1,47 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourceGroups/CaptiveInnovationsRG/providers/Microsoft.Sql/servers/captive-sql-server",
+  "identity": {
+    "principalId": null,
+    "tenantId": null,
+    "type": "UserAssigned",
+    "userAssignedIdentities": {
+      "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourcegroups/CaptiveInnovationsRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/CaptiveInnovations-UMI": {
+        "clientId": "19b10e32-436b-42a3-8ba3-418dc1f69644",
+        "principalId": "e948a2ce-262e-468a-ab53-dd61f905b368"
+      }
+    }
+  },
+  "kind": "v12.0",
+  "location": "centralus",
+  "managedBy": null,
+  "name": "captive-sql-server",
+  "plan": null,
+  "properties": {
+    "administratorLogin": "CaptiveAdmin",
+    "administrators": {
+      "administratorType": "ActiveDirectory",
+      "azureADOnlyAuthentication": false,
+      "login": "CaptiveInnovations-UMI",
+      "principalType": "Application",
+      "sid": "19b10e32-436b-42a3-8ba3-418dc1f69644",
+      "tenantId": "28a36f5f-0c82-49c0-9b64-066bd21a55d3"
+    },
+    "externalGovernanceStatus": "Disabled",
+    "fullyQualifiedDomainName": "captive-sql-server.database.windows.net",
+    "minimalTlsVersion": "1.2",
+    "primaryUserAssignedIdentityId": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourcegroups/CaptiveInnovationsRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/CaptiveInnovations-UMI",
+    "privateEndpointConnections": [],
+    "publicNetworkAccess": "Enabled",
+    "restrictOutboundNetworkAccess": "Disabled",
+    "retentionDays": -1,
+    "state": "Ready",
+    "version": "12.0"
+  },
+  "resourceGroup": "CaptiveInnovationsRG",
+  "sku": null,
+  "tags": {
+    "Company": "SSM"
+  },
+  "type": "Microsoft.Sql/servers"
+}

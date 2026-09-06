@@ -1,0 +1,108 @@
+stages:
+- stage: Validate
+  displayName: Validate
+  dependsOn: Swap
+  variables:
+    InWindow: $[ dependencies.Swap.outputs['SwapSlotToLive.SwapSlotToLive.settime.InWindow'] ]
+    SlotReady: $[ dependencies.Swap.outputs['SwapSlotToLive.SwapSlotToLive.slothealth.SlotReady'] ]
+  condition: and(succeeded('Swap'), eq(variables['InWindow'], 'true'), eq(variables['SlotReady'], 'true'))
+  jobs:
+  - job: ValidateLiveSite
+    displayName: Validate live site
+    pool:
+      vmImage: windows-latest
+    steps:
+    - task: PowerShell@2
+      displayName: Check live health endpoint
+      name: checkhealth
+      inputs:
+        pwsh: true
+        targetType: inline
+        script: |
+          $healthUrl = '$(healthCheckUrl)'
+          $expectedKw = '$(healthCheckExpectedKeyword)'
+          # Attended (manual/out-of-window) runs favor a faster failure signal since a human is
+          # actively watching; unattended (scheduled) runs can afford to wait longer for a
+          # genuinely slow cold start with nobody watching.
+          $maxAttempts = if ('$(Build.Reason)' -eq 'Manual') { [int]'$(verificationRetryCountAttended)' } else { [int]'$(verificationRetryCountUnattended)' }
+          $delaySeconds = [int]'$(verificationRetryDelaySeconds)'
+          $timeoutSeconds = [int]'$(verificationRequestTimeoutSeconds)'
+
+          # FailureCategory distinguishes an application problem (bad build - safe to discard)
+          # from an infrastructure problem (App Service / platform / network blip - build should
+          # be kept for retry). Classification is based on the LAST attempt's outcome:
+          #   - No response at all (exception: timeout, DNS failure, connection refused), or a
+          #     502/503/504 from the platform front-end = InfrastructureIssue (keep build).
+          #   - A real HTTP response that doesn't match the expected keyword, or a 500 from app
+          #     code = AppIssue (discard build).
+          #   - Anything ambiguous defaults to InfrastructureIssue (favor not discarding).
+          $failureCategory = 'InfrastructureIssue'
+
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Live health check attempt $attempt of $maxAttempts - $healthUrl"
+            try {
+              $response = Invoke-WebRequest -Uri $healthUrl -Method Get -TimeoutSec $timeoutSeconds -SkipHttpErrorCheck
+              if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+                if (-not [string]::IsNullOrWhiteSpace($expectedKw) -and $response.Content -notmatch [regex]::Escape($expectedKw)) {
+                  Write-Host "Response did not contain expected keyword '$expectedKw'."
+                  $failureCategory = 'AppIssue'
+                }
+                else {
+                  Write-Host "Live health check passed (HTTP $($response.StatusCode))."
+                  Write-Host '##vso[task.setvariable variable=IsValid;isOutput=true]true'
+                  exit 0
+                }
+              }
+              elseif ($response.StatusCode -in 502, 503, 504) {
+                Write-Host "Live health check returned HTTP $($response.StatusCode) (platform-level gateway error)."
+                $failureCategory = 'InfrastructureIssue'
+              }
+              else {
+                Write-Host "Live health check returned HTTP $($response.StatusCode)."
+                $failureCategory = 'AppIssue'
+              }
+            }
+            catch {
+              Write-Host "Live health check error: $($_.Exception.Message)"
+              $failureCategory = 'InfrastructureIssue'
+            }
+
+            if ($attempt -lt $maxAttempts) {
+              Start-Sleep -Seconds $delaySeconds
+            }
+          }
+
+          Write-Host "Live health validation failed after $maxAttempts attempts. Classified as: $failureCategory"
+          Write-Host '##vso[task.setvariable variable=IsValid;isOutput=true]false'
+          Write-Host "##vso[task.setvariable variable=FailureCategory;isOutput=true]$failureCategory"
+          exit 1
+
+    - task: AzureCLI@2
+      displayName: Clear staging slot content after successful validation
+      condition: eq(variables['checkhealth.IsValid'], 'true')
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: pscore
+        scriptLocation: inlineScript
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+
+          # Staging has already been swapped into production and is now idle. Clearing its
+          # content here is what makes "staging has an artifact" a reliable signal for the
+          # next promotion cycle - the Dev pipeline is the only thing that repopulates staging,
+          # and Swap only proceeds when the staging health check succeeds against fresh content.
+          #
+          # Uses the pipeline's UMI (via the already-authenticated az CLI session) to get an
+          # Azure AD bearer token for Kudu, rather than SCM basic-auth publishing credentials -
+          # basic auth is disabled on this App Service, so a Bearer token is required instead.
+          $accessToken = az account get-access-token --resource https://management.azure.com/ --query accessToken -o tsv
+          $kuduHost = "$(appServiceName)-$(deploymentSlotName).scm.azurewebsites.net"
+          $headers = @{ Authorization = "Bearer $accessToken" }
+
+          $body = @{
+            command = 'cmd /c del /q /s *.* 2^>nul & for /d %i in (*) do rmdir /s /q "%i"'
+            dir     = 'site\wwwroot'
+          } | ConvertTo-Json
+
+          Invoke-RestMethod -Uri "https://$kuduHost/api/command" -Headers $headers -Method Post -ContentType 'application/json' -Body $body | Out-Null
+          Write-Host 'Staging slot content cleared. Staging is now empty and ready for the next Dev deployment cycle.'

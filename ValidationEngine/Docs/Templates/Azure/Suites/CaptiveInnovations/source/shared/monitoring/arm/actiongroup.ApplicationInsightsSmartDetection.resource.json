@@ -1,0 +1,36 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/2705A7B7-5FA5-4040-B54B-1B28C40D0B18/resourceGroups/CaptiveInnovationsRG/providers/microsoft.insights/actionGroups/Application Insights Smart Detection",
+  "identity": null,
+  "kind": null,
+  "location": "Global",
+  "managedBy": null,
+  "name": "Application Insights Smart Detection",
+  "plan": null,
+  "properties": {
+    "armRoleReceivers": [],
+    "automationRunbookReceivers": [],
+    "azureAppPushReceivers": [],
+    "azureFunctionReceivers": [],
+    "emailReceivers": [
+      {
+        "emailAddress": "tcrowe@singlesourcemanagement.com",
+        "name": "TroyCrowe",
+        "status": "Enabled",
+        "useCommonAlertSchema": true
+      }
+    ],
+    "enabled": true,
+    "eventHubReceivers": [],
+    "groupShortName": "SmartDetect",
+    "itsmReceivers": [],
+    "logicAppReceivers": [],
+    "smsReceivers": [],
+    "voiceReceivers": [],
+    "webhookReceivers": []
+  },
+  "resourceGroup": "CaptiveInnovationsRG",
+  "sku": null,
+  "tags": null,
+  "type": "Microsoft.Insights/ActionGroups"
+}

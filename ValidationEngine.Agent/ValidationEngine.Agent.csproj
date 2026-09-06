@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ValidationEngine\ValidationEngine.csproj" />
+    <ProjectReference Include="..\ValidationEngine.Models\ValidationEngine.Models.csproj" />
+    <!--
+      ValidationEngine.Reporting is a plug-in, not a dependency of the core engine. This project's
+      own Program.cs is a composition root that chooses to wire up the default renderers directly -
+      any other consumer/app is free to supply a different IMarkdownReportRenderer/IJsonReportRenderer
+      implementation instead.
+    -->
+    <ProjectReference Include="..\ValidationEngine.Reporting\ValidationEngine.Reporting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.11" />
+  </ItemGroup>
+
+</Project>

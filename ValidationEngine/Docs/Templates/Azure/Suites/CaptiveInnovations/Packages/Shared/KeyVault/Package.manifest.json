@@ -1,0 +1,10 @@
+{
+  "packageName": "shared-key-vault",
+  "rolloutUnit": "shared",
+  "dependsOn": [
+    "../identities/package.manifest.json"
+  ],
+  "sourceArtifacts": [
+    "../../../source/shared/key-vault/arm/keyvault.CaptiveVault.resource.json"
+  ]
+}
