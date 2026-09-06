@@ -15,10 +15,9 @@ module.exports = {
             let match;
             bannedWordPattern.lastIndex = 0;
             while ((match = bannedWordPattern.exec(line)) !== null) {
-                const precedingChar = match.index > 0 ? line[match.index - 1] : "\0";
-                const followingIndex = match.index + match[0].length;
-                const followingChar = followingIndex < line.length ? line[followingIndex] : "\0";
-                if (precedingChar === '"' && followingChar === '"') {
+                const prefix = line.slice(0, match.index);
+                const quoteCount = (prefix.match(/"/g) ?? []).length;
+                if (quoteCount % 2 === 1) {
                     continue;
                 }
 
