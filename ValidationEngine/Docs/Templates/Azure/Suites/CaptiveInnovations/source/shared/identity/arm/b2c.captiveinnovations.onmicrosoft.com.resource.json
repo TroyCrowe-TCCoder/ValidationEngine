@@ -27,9 +27,7 @@
     "createdAt": null,
     "createdBy": null,
     "createdByType": null,
-    "lastModifiedAt": "2024-11-05T01:57:35.9189512Z",
-    "lastModifiedBy": "tcrowe@singlesourcemanagement.com",
-    "lastModifiedByType": "User"
+    "lastModifiedBy": "<redacted>",
   },
   "tags": null,
   "type": "Microsoft.AzureActiveDirectory/b2cDirectories"
