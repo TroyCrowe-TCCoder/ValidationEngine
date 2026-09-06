@@ -1,0 +1,50 @@
+{
+  "suite": "CaptiveInnovations",
+  "format": "ARM",
+  "model": "source-capture-plus-rollout-packages",
+  "sourceRoot": "../source",
+  "packageOrder": [
+    "shared/identities",
+    "shared/hosting",
+    "shared/monitoring",
+    "shared/storage-eventing",
+    "shared/key-vault",
+    "shared/sql-data",
+    "applications/CaptiveDocumentManagerAPI",
+    "applications/CaptiveExpensesAPI",
+    "applications/CaptiveMessagingAPI",
+    "applications/CaptiveExpenses"
+  ],
+  "packages": {
+    "shared/identities": {
+      "manifest": "shared/identities/package.manifest.json"
+    },
+    "shared/hosting": {
+      "manifest": "shared/hosting/package.manifest.json"
+    },
+    "shared/monitoring": {
+      "manifest": "shared/monitoring/package.manifest.json"
+    },
+    "shared/storage-eventing": {
+      "manifest": "shared/storage-eventing/package.manifest.json"
+    },
+    "shared/key-vault": {
+      "manifest": "shared/key-vault/package.manifest.json"
+    },
+    "shared/sql-data": {
+      "manifest": "shared/sql-data/package.manifest.json"
+    },
+    "applications/CaptiveDocumentManagerAPI": {
+      "manifest": "applications/CaptiveDocumentManagerAPI/package.manifest.json"
+    },
+    "applications/CaptiveExpensesAPI": {
+      "manifest": "applications/CaptiveExpensesAPI/package.manifest.json"
+    },
+    "applications/CaptiveMessagingAPI": {
+      "manifest": "applications/CaptiveMessagingAPI/package.manifest.json"
+    },
+    "applications/CaptiveExpenses": {
+      "manifest": "applications/CaptiveExpenses/package.manifest.json"
+    }
+  }
+}

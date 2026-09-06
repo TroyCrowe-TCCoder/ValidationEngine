@@ -1,0 +1,17 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https?://" },
+    { "pattern": "^#ref-[0-9]+$" },
+    { "pattern": "Templates/" },
+    { "pattern": "KnowledgeBase/" },
+    { "pattern": "References/" },
+    { "pattern": "Working/" }
+  ],
+  "replacementPatterns": [],
+  "httpHeaders": [],
+  "timeout": "10s",
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackRetryDelay": "30s",
+  "aliveStatusCodes": [200, 206, 429]
+}

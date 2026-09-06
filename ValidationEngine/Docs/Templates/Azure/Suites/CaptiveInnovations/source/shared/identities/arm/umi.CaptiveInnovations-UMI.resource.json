@@ -1,0 +1,20 @@
+{
+  "extendedLocation": null,
+  "id": "/subscriptions/2705a7b7-5fa5-4040-b54b-1b28c40d0b18/resourcegroups/CaptiveInnovationsRG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/CaptiveInnovations-UMI",
+  "identity": null,
+  "kind": null,
+  "location": "centralus",
+  "managedBy": null,
+  "name": "CaptiveInnovations-UMI",
+  "plan": null,
+  "properties": {
+    "clientId": "19b10e32-436b-42a3-8ba3-418dc1f69644",
+    "isolationScope": "None",
+    "principalId": "e948a2ce-262e-468a-ab53-dd61f905b368",
+    "tenantId": "28a36f5f-0c82-49c0-9b64-066bd21a55d3"
+  },
+  "resourceGroup": "CaptiveInnovationsRG",
+  "sku": null,
+  "tags": {},
+  "type": "Microsoft.ManagedIdentity/userAssignedIdentities"
+}

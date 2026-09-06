@@ -1,0 +1,23 @@
+trigger:
+  branches:
+    include:
+      - dev
+
+pr:
+  branches:
+    include:
+      - dev
+
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+variables:
+- template: ../Variables/variables.yml
+
+stages:
+- template: change-detection.yml
+  parameters:
+    mode: pr
+    targetBranch: refs/heads/dev
+- template: build.yml
+- template: test.yml
+- template: carry-forward.yml

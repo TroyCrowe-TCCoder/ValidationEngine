@@ -1,0 +1,11 @@
+{
+  "packageName": "shared-storage-eventing",
+  "rolloutUnit": "shared",
+  "dependsOn": [
+    "../identities/package.manifest.json"
+  ],
+  "sourceArtifacts": [
+    "../../../source/shared/storage/arm/storage.captivestorage.resource.json",
+    "../../../source/shared/eventing/arm/systemtopic.captivestorage.resource.json"
+  ]
+}

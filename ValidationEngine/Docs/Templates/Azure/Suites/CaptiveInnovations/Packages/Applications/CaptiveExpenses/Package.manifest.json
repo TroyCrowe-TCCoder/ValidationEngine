@@ -1,0 +1,19 @@
+{
+  "packageName": "CaptiveExpenses",
+  "rolloutUnit": "application",
+  "dependsOn": [
+    "../../shared/identities/package.manifest.json",
+    "../../shared/hosting/package.manifest.json",
+    "../../shared/monitoring/package.manifest.json",
+    "../../shared/key-vault/package.manifest.json",
+    "../../shared/sql-data/package.manifest.json"
+  ],
+  "sourceArtifacts": [
+    "../../../source/applications/CaptiveExpenses/arm/site.CaptiveExpenses.resource.json",
+    "../../../source/applications/CaptiveExpenses/arm/slot.staging.resource.json",
+    "../../../source/applications/CaptiveExpenses/arm/appinsights.CaptiveExpenses.resource.json",
+    "../../../source/applications/CaptiveExpenses/arm/signalr.CaptiveExpenses.resource.json",
+    "../../../source/shared/monitoring/arm/smartdetector.CaptiveExpenses.resource.json",
+    "../../../source/shared/dashboards/arm/dashboard.captiveexpenses-dashboard-v2.resource.json"
+  ]
+}

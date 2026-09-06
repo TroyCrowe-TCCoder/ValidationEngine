@@ -1,0 +1,42 @@
+stages:
+- stage: Publish
+  displayName: Publish
+  dependsOn:
+  - ChangeDetection
+  - Build
+  - Test
+  condition: >-
+    and(
+      not(failed()),
+      not(canceled()),
+      eq(dependencies.ChangeDetection.outputs['Detect.setvar.CodeChanges'], 'true')
+    )
+  jobs:
+  - deployment: PublishToSlot
+    displayName: Publish artifact to slot
+    environment: <devEnvironmentName>
+    pool:
+      vmImage: windows-latest
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: none
+
+          - task: DownloadPipelineArtifact@2
+            displayName: Download application artifact
+            inputs:
+              artifact: $(pipelineArtifactName)
+              path: $(publishOutputPath)
+
+          - task: AzureWebApp@1
+            displayName: Publish artifact to slot
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              appType: webApp
+              appName: $(appServiceName)
+              deployToSlotOrASE: true
+              resourceGroupName: $(resourceGroupName)
+              slotName: $(deploymentSlotName)
+              package: $(publishOutputPath)/**/*.zip
+              deploymentMethod: zipDeploy

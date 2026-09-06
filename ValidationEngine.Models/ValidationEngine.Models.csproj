@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>net10.0</TargetFramework>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Nullable>enable</Nullable>
+	<NuGetAudit>true</NuGetAudit>
+	<NuGetAuditLevel>moderate</NuGetAuditLevel>
+	<NuGetAuditMode>all</NuGetAuditMode>
+
+	<!-- NuGet package identity -->
+	<PackageId>ValidationEngine.Models</PackageId>
+	<Version>1.0.0</Version>
+	<Authors>Troy C</Authors>
+	<Company>TC-Coder</Company>
+	<Product>ValidationEngine.Models</Product>
+	<Description>Shared domain and reporting contracts (ValidationReport, RuleFinding, RunContext, EngineError, and related types) consumed by the ValidationEngine standards validation suite and its plug-ins.</Description>
+	<PackageTags>validation;standards;dotnet;models;contracts</PackageTags>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+	<RepositoryUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</RepositoryUrl>
+	<RepositoryType>git</RepositoryType>
+
+	<!-- Embed XML doc comments so consumers see IntelliSense from the package -->
+	<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	<!-- Suppress CS1591 (missing XML doc) warnings — public members are documented;
+		 internal/private helpers are intentionally undocumented -->
+	<NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
