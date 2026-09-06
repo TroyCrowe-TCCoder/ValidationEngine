@@ -37,6 +37,8 @@ public sealed class ApplicabilityMatrixReader
 
     private static ApplicabilityStatus ParseStatus(string field)
     {
+        field = field.Trim();
+
         return field switch
         {
             "Applies" => ApplicabilityStatus.Applies,
