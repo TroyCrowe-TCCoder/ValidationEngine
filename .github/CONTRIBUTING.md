@@ -34,7 +34,7 @@ Please search existing issues first to avoid duplicates.
   [README.md](README.md) for how `ValidationEngine`, `ValidationEngine.Agent`,
   `ValidationEngine.Link`, `ValidationEngine.Models`, `ValidationEngine.Reporting`, and
   `ValidationEngine.Analyzers` relate to each other.
-- CI (Azure Pipelines) runs build and test automatically on pull requests targeting `dev`; a PR
+- CI (GitHub Actions) runs build and test automatically on pull requests; a PR
   cannot be merged if CI fails.
 
 ## Code of Conduct
