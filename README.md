@@ -13,12 +13,14 @@ link validation.
 
 ## Projects
 
-| Project | Description |
-|---|---|
-| `ValidationEngine` | Core deterministic mechanical rule engine and orchestration. |
-| `ValidationEngine.Agent` | AI-assisted evaluation for manual-only / judgment-based rules. |
-| `ValidationEngine.Link` | Markdown link validation (internal + external links). |
-| `ValidationEngine.Analyzers` | Roslyn analyzer package family (compile-time enforcement), organized by domain folders/namespaces. |
+| Project | Package type | Description |
+|---|---|---|
+| `ValidationEngine` | .NET tool (`validation-engine`) | Core deterministic mechanical rule engine and orchestration; the entry point for a validation run. |
+| `ValidationEngine.Agent` | .NET tool (`validation-engine-agent`) | AI-assisted evaluation for manual-only / judgment-based rules. Optional add-on invoked by the core engine. |
+| `ValidationEngine.Link` | .NET tool (`validation-engine-link`) | Markdown link validation (internal + external links). Can run standalone or as an add-on. |
+| `ValidationEngine.Models` | NuGet library | Shared domain/reporting contracts (`ValidationReport`, `RuleFinding`, etc.) with no dependency on any other project. |
+| `ValidationEngine.Reporting` | NuGet library | Default Markdown/JSON report renderers; a plug-in, not a required dependency. |
+| `ValidationEngine.Analyzers` | NuGet analyzer package | Roslyn analyzer package family (compile-time enforcement), organized by domain folders/namespaces. |
 
 ## Configuring AI-Assisted Review
 
@@ -72,23 +74,85 @@ Notes:
 
 ## Standards Source
 
-This repository does not itself contain the standards corpus. It expects a sibling clone of
-the `GlobalStandards` repository, referenced via relative path:
+The standards corpus is vendored directly into this repository under `Docs/Standards`. Those
+markdown files are the authoritative "fuel source" — human-readable and agent-readable rule
+definitions that drive both the deterministic and AI-assisted engines. They can be added to,
+edited, or removed independently of the engine code itself.
 
-```
-../GlobalStandards/Docs/Standards
+By default, the engine resolves the standards root from `Docs/Standards` relative to the
+repository being validated. If you are validating a different repository, or you keep the
+standards corpus elsewhere, point the engine at it explicitly using one of, in priority order:
+
+1. The `-GlobalStandardsRoot <path>` command-line argument.
+2. The `GLOBALSTANDARDS_ROOT` environment variable.
+3. `"standardsPath"` in `validationengine.config.json` at the target repository's root.
+
+## Installing the Tools
+
+Each executable component is published as an independent
+[.NET tool](https://learn.microsoft.com/dotnet/core/tools/global-tools) so consumers only install
+what they need:
+
+```bash
+dotnet tool install --global ValidationEngine          # validation-engine (core orchestrator)
+dotnet tool install --global ValidationEngine.Agent     # validation-engine-agent (AI-assisted manual review)
+dotnet tool install --global ValidationEngine.Link      # validation-engine-link (markdown link validation)
 ```
 
-Clone both repositories side by side:
+`ValidationEngine.Models`, `ValidationEngine.Reporting`, and `ValidationEngine.Analyzers` are
+regular NuGet libraries/analyzers referenced from a project rather than installed as tools — see
+their own package READMEs for details.
 
-```
-repos/
-  GlobalStandards/
-  ValidationEngine/
+## Running the Core Engine
+
+From the root of the repository you want to validate:
+
+```bash
+validation-engine
 ```
 
-Standards rules remain the authoritative "fuel source" — human-readable and agent-readable
-markdown files that can be added to, edited, or removed independently of this tooling.
+Common arguments:
+
+| Argument | Description |
+|---|---|
+| `-RepositoryRoot <path>` | Repository to validate. Defaults to the current directory. |
+| `-GlobalStandardsRoot <path>` | Standards corpus location override (see above). |
+| `-Mode <Manual\|Pr\|...>` | Run mode; controls which rule set(s) execute. Defaults to `Manual`. |
+| `-TargetBranch <branch>` | Base branch for PR-mode diff scoping. |
+
+The engine writes `Working/ValidationDiscrepancies.md` and `.json` (plus a pruned history under
+`Working/ValidationHistory/`) whenever violations, manual-review items, or engine errors are
+found, and prints the Markdown report to the console. The process exit code is `0` (clean),
+`1` (violations/manual-review items present), or `2` (engine errors).
+
+`ValidationEngine` invokes `ValidationEngine.Agent` and `ValidationEngine.Link` as external
+sibling tool processes when they are installed and applicable to the current run — none of the
+three is a hard compile-time dependency of another beyond `ValidationEngine.Models`.
+
+## Running Link Validation Standalone
+
+`validation-engine-link` can also be run directly, independent of the core engine:
+
+```bash
+validation-engine-link --full-audit
+```
+
+| Argument | Description |
+|---|---|
+| `-RepositoryRoot <path>` | Repository to scan. Defaults to the current directory. |
+| `--full-audit` | Scan every markdown file instead of only files changed vs. a base branch. |
+| `--base-branch <branch>` | Base branch to diff against when not doing a full audit. |
+| `--app <name>` | Application name attached to reported issues. |
+| `--output <path>` | Write issues as JSON to the given path. |
+| `--concurrency <n>` | Max concurrent link checks. Defaults to processor count. |
+| `--timeout <seconds>` | Per-external-link HTTP timeout. Defaults to 10. |
+
+## Running AI-Assisted Manual Review
+
+`validation-engine-agent` evaluates manual-only / judgment-based rules (see
+[Configuring AI-Assisted Review](#configuring-ai-assisted-review) above) and is normally invoked
+automatically by `validation-engine`. It can also be run standalone against a repository that has
+an `appsettings.json` configured with at least one active provider.
 
 ## License
 

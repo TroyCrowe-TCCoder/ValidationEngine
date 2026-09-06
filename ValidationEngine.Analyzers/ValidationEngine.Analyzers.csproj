@@ -16,7 +16,15 @@
     <Authors>Troy C</Authors>
     <Company>TC-Coder</Company>
     <Description>Roslyn analyzers enforcing ValidationEngine coding, security, caching, database, logging, performance, and testing standards.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />

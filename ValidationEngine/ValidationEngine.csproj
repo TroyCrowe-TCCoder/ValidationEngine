@@ -5,9 +5,24 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>validation-engine</ToolCommandName>
+    <PackageId>ValidationEngine</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Troy C</Authors>
+    <Company>TC-Coder</Company>
+    <Product>ValidationEngine</Product>
+    <Description>Core Roslyn-based standards validation engine CLI. Validates repositories against coding, security, database, and other mechanical standards. Extend with ValidationEngine.Agent for AI-assisted manual review, ValidationEngine.Link for link validation, and ValidationEngine.Reporting for custom report renderers.</Description>
+    <PackageTags>validation;standards;dotnet;cli;dotnet-tool;roslyn</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <None Include="CoverageMatrices\**\*.md" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Docs\Standards\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

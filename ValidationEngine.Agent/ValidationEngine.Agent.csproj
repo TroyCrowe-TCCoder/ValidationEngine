@@ -5,7 +5,25 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>validation-engine-agent</ToolCommandName>
+    <PackageId>ValidationEngine.Agent</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Troy C</Authors>
+    <Company>TC-Coder</Company>
+    <Product>ValidationEngine.Agent</Product>
+    <Description>AI-assisted manual review agent for ValidationEngine. Evaluates manual-only rules using a configured Azure OpenAI provider. Invoked as a sibling process by ValidationEngine; install alongside it to enable manual-only rule evaluation.</Description>
+    <PackageTags>validation;standards;dotnet;cli;dotnet-tool;ai</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\ValidationEngine\ValidationEngine.csproj" />
