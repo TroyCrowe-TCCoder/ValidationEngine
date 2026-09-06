@@ -4,7 +4,13 @@ AI-assisted manual review add-on for the
 [ValidationEngine](https://github.com/TroyCrowe-TCCoder/ValidationEngine) standards validation
 suite, distributed as the `validation-engine-agent` .NET global tool.
 
-## What it does
+## What It Is
+
+An optional .NET global tool add-on to `validation-engine` that delegates judgment-based rule
+evaluation to a configured AI provider. It is not required to run the core engine, and installing
+it adds capability without any code changes to the core tool.
+
+## What It Does
 
 Deterministic rule checks can't evaluate judgment-based standards (readability, intent, "does
 this comment actually explain why"). `validation-engine-agent` closes that gap by sending
@@ -13,6 +19,24 @@ reporting findings back through the same `ValidationReport` contract the core en
 
 It is normally invoked automatically by `validation-engine` as a sibling process, but can also be
 run standalone against any repository with a valid `appsettings.json`.
+
+## Its Modularity
+
+`ValidationEngine.Agent` references `ValidationEngine` and `ValidationEngine.Models`, and uses
+`ValidationEngine.Reporting`'s default renderers as a composition-root convenience (any consumer
+is free to supply its own). It is launched by the core engine as an external process, not a
+compile-time dependency in the other direction, so it can be installed, updated, or omitted
+independently of `validation-engine` itself.
+
+## How It Works
+
+1. Reads `appsettings.json` from the target repository root and resolves any active AI providers.
+2. For each manual-only rule in the standards corpus, sends the relevant context to an active
+   `Validation`-purpose provider and interprets the response as a finding.
+3. Optionally attaches rationale from an active `Explain`-purpose provider to findings already
+   produced by a `Validation` provider.
+4. Reports findings back through the shared `ValidationReport` contract, either to its own
+   invoker or merged into a run started by `validation-engine`.
 
 ## Installing
 
@@ -67,7 +91,9 @@ Notes:
   provider resolves to active, manual-only rules are reported as `AGT-001` ("not evaluated")
   instead of being silently skipped.
 
-## How it fits together
+## License
+
+MIT — see [LICENSE](https://github.com/TroyCrowe-TCCoder/ValidationEngine/blob/main/LICENSE).
 
 `ValidationEngine.Agent` references `ValidationEngine` and `ValidationEngine.Models`, and uses
 `ValidationEngine.Reporting`'s default renderers as a composition-root convenience (any consumer

@@ -4,14 +4,28 @@ Automated repository standards validation suite: deterministic mechanical rule c
 AI-assisted manual-only rule evaluation, markdown link validation, and Roslyn compile-time
 analyzers, all driven by a shared, editable standards corpus.
 
-## Purpose
+## What It Is
 
-ValidationEngine enforces the rules defined in a companion standards repository (see
-[Standards Source](#standards-source) below) across a codebase: at compile time via analyzers,
-at validation time via deterministic and AI-assisted rule engines, and for documentation via
-link validation.
+ValidationEngine is a suite of independently distributable .NET tools and libraries that enforce
+the rules defined in a shared, editable standards corpus (see
+[Standards Source](#standards-source) below) against a codebase. Rather than a single monolithic
+application, it is a small family of composable components — a core orchestrator, optional
+add-on tools, shared contracts, and compile-time analyzers — that can be installed and versioned
+independently while still working together as a cohesive whole.
 
-## Projects
+## What It Does
+
+- Runs deterministic, mechanical rule checks against a target repository (coding, security,
+  database, and similar standards that can be verified programmatically).
+- Evaluates manual-only / judgment-based rules using a configured AI provider, for standards
+  that require human-like judgment (e.g. "does this explain *why*, not just *what*").
+- Validates internal and external links across markdown documentation.
+- Enforces a subset of the same standards at compile time, directly in the IDE and on build,
+  via Roslyn analyzers — catching violations before a validation run ever happens.
+- Renders results as Markdown and JSON reports, retains a pruned run history, and produces a
+  process exit code suitable for CI gating.
+
+## Its Modularity
 
 | Project | Package type | Description |
 |---|---|---|
@@ -21,6 +35,34 @@ link validation.
 | `ValidationEngine.Models` | NuGet library | Shared domain/reporting contracts (`ValidationReport`, `RuleFinding`, etc.) with no dependency on any other project. |
 | `ValidationEngine.Reporting` | NuGet library | Default Markdown/JSON report renderers; a plug-in, not a required dependency. |
 | `ValidationEngine.Analyzers` | NuGet analyzer package | Roslyn analyzer package family (compile-time enforcement), organized by domain folders/namespaces. |
+
+Each component is installed and versioned independently — a consumer only takes what it needs.
+`ValidationEngine.Agent` and `ValidationEngine.Link` are launched by the core engine as external
+sibling processes, not compile-time dependencies, so either can be added, updated, or omitted
+without touching the others. `ValidationEngine.Models` and `ValidationEngine.Reporting` are the
+only shared compiled dependencies, and `ValidationEngine.Reporting` is itself a swappable
+plug-in — any consumer can supply its own renderer instead. `ValidationEngine.Analyzers` is
+fully independent of the rest of the suite; it enforces the same standards corpus at compile
+time only.
+
+## How It Works
+
+1. `validation-engine` resolves the standards corpus (see [Standards Source](#standards-source))
+   and the repository to validate, then runs its deterministic rule set against it.
+2. If `ValidationEngine.Agent` is installed and applicable rules require it, the core engine
+   launches `validation-engine-agent` as a sibling process to evaluate manual-only rules via a
+   configured AI provider (see [Configuring AI-Assisted Review](#configuring-ai-assisted-review)).
+3. If `ValidationEngine.Link` is installed and applicable, the core engine launches
+   `validation-engine-link` as a sibling process to validate markdown links; it can also be run
+   entirely standalone.
+4. All findings are merged into a single `ValidationReport` (from `ValidationEngine.Models`) and
+   rendered via `ValidationEngine.Reporting`'s Markdown/JSON renderers (or a custom
+   implementation) into `Working/ValidationDiscrepancies.md` / `.json`, with a pruned run history
+   retained under `Working/ValidationHistory/`.
+5. Independently of any validation run, `ValidationEngine.Analyzers` — if referenced by a
+   project — flags the same class of standards violations live in the IDE and on every build.
+6. The process exits `0` (clean), `1` (violations or manual-review items present), or `2`
+   (engine errors), making the core tool suitable for CI/PR gating.
 
 ## Configuring AI-Assisted Review
 
