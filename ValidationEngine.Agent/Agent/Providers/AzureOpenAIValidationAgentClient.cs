@@ -7,7 +7,7 @@ namespace ValidationEngine.Agent.Providers;
 
 /// <summary>
 /// First concrete provider (AGT-003), using the "gpt-5.5" deployment in the
-/// "Single Source Management" subscription.
+/// configured Azure OpenAI subscription.
 /// </summary>
 public sealed class AzureOpenAIValidationAgentClient : IValidationAgentClient
 {

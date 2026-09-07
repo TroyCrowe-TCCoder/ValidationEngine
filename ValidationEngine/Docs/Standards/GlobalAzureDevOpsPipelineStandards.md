@@ -533,7 +533,7 @@ The service connection authorizes pipeline tasks (`AzureWebApp@1`, `AzureAppServ
 2. Click **New service connection** -> select **Azure Resource Manager**.
 3. Authentication method: **Workload Identity Federation**.
 4. Scope level: **Subscription**.
-5. Select subscription **`SingleSourceManagement`** and set the target resource group for the repository when the connection is scoped to a resource group.
+5. Select the target subscription and set the target resource group for the repository when the connection is scoped to a resource group.
 6. For the current rollout, use the shared User Managed Identity **`CI-DevOps-UMI`**.
 7. Service connection name: **`CI-DevOps-UMI-Connection`**.
 8. Check **Grant access permission to all pipelines**.
@@ -548,11 +548,11 @@ Use this sequence for the current shared rollout configuration:
 1. Authenticate to Azure interactively with the device login flow.
    - Run `az login --use-device-code`.
    - Complete the browser/device-code prompt with the intended developer identity.
-2. Set the active subscription to `SingleSourceManagement`.
-   - Run `az account set --subscription SingleSourceManagement`.
+2. Set the active subscription to the target subscription.
+   - Run `az account set --subscription <SubscriptionName>`.
 3. Verify the shared User Managed Identity `CI-DevOps-UMI` exists in the target tenant and has the permissions required for the target resource group or subscription scope.
 4. In Azure DevOps, open **Project Settings** -> **Service connections** and create or recreate the Azure Resource Manager service connection using **Workload Identity Federation**.
-5. Bind the service connection to subscription `SingleSourceManagement`, use the shared UMI `CI-DevOps-UMI`, and name the connection `CI-DevOps-UMI-Connection`.
+5. Bind the service connection to the target subscription, use the shared UMI `CI-DevOps-UMI`, and name the connection `CI-DevOps-UMI-Connection`.
 6. Grant access to all pipelines only after confirming the connection targets the intended subscription and identity.
 7. Update each repository pipeline variable file to reference `CI-DevOps-UMI-Connection` exactly.
 

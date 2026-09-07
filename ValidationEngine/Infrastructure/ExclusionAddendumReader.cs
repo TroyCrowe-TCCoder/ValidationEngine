@@ -2,6 +2,18 @@ using System.Text.RegularExpressions;
 
 namespace ValidationEngine.Infrastructure;
 
+/// <summary>
+/// Reads repository-local addendum files (<c>Standards/*.md</c>) and resolves which global rule
+/// markers are excluded (suppressed) for the current repository.
+/// </summary>
+/// <remarks>
+/// Suppression happens at the point a finding would be reported (see
+/// <see cref="IsMarkerExcluded(string, IReadOnlySet{string})"/>) rather than by removing the rule
+/// from the run. This is intentional — see
+/// <c>KnowledgeBase.md#suppression-vs-removing-a-rule-from-the-run-addendum-handling</c> for the
+/// rationale (expiry enforcement, auditability, and forward compatibility with future replacement
+/// addenda, https://github.com/TroyCrowe-TCCoder/ValidationEngine/issues/7).
+/// </remarks>
 public sealed partial class ExclusionAddendumReader
 {
     public sealed record AddendumReadResult
@@ -76,7 +88,7 @@ public sealed partial class ExclusionAddendumReader
         return excludedMarkers.Contains($"{parts[0]}.file");
     }
 
-    [GeneratedRegex(@"(?m)^\*\*Marker ID:\*\*\s*(\S+)")]
+    [GeneratedRegex(@"(?m)^(?:[-*]\s+)?\*\*Marker ID:\*\*\s*(\S+)")]
     private static partial Regex MarkerIdPattern();
 
     [GeneratedRegex(@"\*\*Planned Review Date:\*\*\s*(\d{4}-\d{2}-\d{2})")]
