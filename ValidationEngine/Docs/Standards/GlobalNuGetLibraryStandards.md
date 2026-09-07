@@ -100,9 +100,9 @@ A conforming example is:
   <PackageId>HttpClientManager</PackageId>
   <Version>1.2.0</Version>
   <Authors>Troy Crowe</Authors>
-  <Company>Single Source Management</Company>
+  <Company>TC-Coder</Company>
   <Description>Provides shared outbound HTTP client configuration and request execution helpers.</Description>
-  <RepositoryUrl>https://dev.azure.com/tcrowe0170/SingleSourceManagement/_git/HttpClientManager</RepositoryUrl>
+  <RepositoryUrl>https://dev.azure.com/&lt;organization&gt;/&lt;project&gt;/_git/HttpClientManager</RepositoryUrl>
   <RepositoryType>git</RepositoryType>
   <GenerateDocumentationFile>true</GenerateDocumentationFile>
   <Nullable>enable</Nullable>

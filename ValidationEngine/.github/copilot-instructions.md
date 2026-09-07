@@ -80,7 +80,7 @@
 ### Environment model for rollout/testing
 - Use only two environments for this rollout: Dev and Production.
 - Dev is local developer machines only; do not create an Azure QA environment for this rollout.
-- Production is Azure PaaS hosted in SingleSourceManagement / CaptiveInnovationsRG and includes:
+- Production is Azure PaaS hosted in the organization's Azure subscription / CaptiveInnovationsRG and includes:
   - App Services: CaptiveExpenses, CaptiveExpensesAPI, CaptiveMessagingAPI, CaptiveDocumentManagerAPI
   - The CaptiveExpenses production database
 - Treat DocumentImportExportManager and HttpClientManager as NuGet class libraries for this rollout; build and publish them as versioned NuGet packages.

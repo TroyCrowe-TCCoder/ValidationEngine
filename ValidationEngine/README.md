@@ -43,6 +43,12 @@ requiring a new release of this package.
 4. Merges all findings into a single report, renders it, writes it to disk, and prunes history.
 5. Returns an exit code reflecting the outcome, suitable for CI/PR gating.
 
+## Design Notes
+
+See [KnowledgeBase.md](KnowledgeBase.md#suppression-vs-removing-a-rule-from-the-run-addendum-handling)
+for recorded design decisions and rationale, including why repository-local addenda suppress
+findings rather than removing rules from the run.
+
 ## Installing
 
 ```bash
