@@ -9,7 +9,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>validation-engine</ToolCommandName>
     <PackageId>ValidationEngine</PackageId>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Authors>Troy C</Authors>
     <Company>TC-Coder</Company>
     <Product>ValidationEngine</Product>
