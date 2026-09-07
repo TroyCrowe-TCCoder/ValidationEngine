@@ -5,9 +5,24 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>validation-engine-link</ToolCommandName>
+    <PackageId>ValidationEngine.Link</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Troy C</Authors>
+    <Company>TC-Coder</Company>
+    <Product>ValidationEngine.Link</Product>
+    <Description>Fast native link validation tool for ValidationEngine. Checks internal and external links in Markdown files. Install alongside ValidationEngine to enable link validation.</Description>
+    <PackageTags>validation;standards;dotnet;cli;dotnet-tool;links;markdown</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/TroyCrowe-TCCoder/ValidationEngine</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <ProjectReference Include="..\ValidationEngine\ValidationEngine.csproj" />
   </ItemGroup>
 

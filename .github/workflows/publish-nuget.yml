@@ -1,0 +1,53 @@
+name: Publish NuGet Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Pack ValidationEngine.Models
+        run: dotnet pack ValidationEngine.Models/ValidationEngine.Models.csproj -c Release -o ./nupkgs
+
+      - name: Pack ValidationEngine.Reporting
+        run: dotnet pack ValidationEngine.Reporting/ValidationEngine.Reporting.csproj -c Release -o ./nupkgs
+
+      - name: Pack ValidationEngine
+        run: dotnet pack ValidationEngine/ValidationEngine.csproj -c Release -o ./nupkgs
+
+      - name: Pack ValidationEngine.Agent
+        run: dotnet pack ValidationEngine.Agent/ValidationEngine.Agent.csproj -c Release -o ./nupkgs
+
+      - name: Pack ValidationEngine.Link
+        run: dotnet pack ValidationEngine.Link/ValidationEngine.Link.csproj -c Release -o ./nupkgs
+
+      - name: Pack ValidationEngine.Analyzers
+        run: dotnet pack ValidationEngine.Analyzers/ValidationEngine.Analyzers.csproj -c Release -o ./nupkgs
+
+      - name: NuGet login (OIDC to temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: TroyCrowe
+
+      - name: Push all packages
+        run: dotnet nuget push "./nupkgs/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
