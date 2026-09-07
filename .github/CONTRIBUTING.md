@@ -6,10 +6,10 @@ through a fork-and-pull-request model.
 ## How to contribute
 
 1. **Fork** this repository to your own GitHub account.
-2. **Branch** from `main` in your fork (e.g. `feature/my-change` or `fix/my-bug`).
+2. **Branch** from `dev` in your fork (e.g. `feature/my-change` or `fix/my-bug`).
 3. Make your change, following the coding conventions already used in the codebase.
 4. Add or update tests for any behavior change.
-5. Open a **pull request** back to `TroyCrowe-TCCoder/ValidationEngine` `main`, describing what
+5. Open a **pull request** back to `TroyCrowe-TCCoder/ValidationEngine` `dev`, describing what
    changed and why.
 
 Direct pushes to this repository are not available to external contributors — all changes must
@@ -47,7 +47,7 @@ abide by it.
 The following GitHub repository settings enforce the contribution model described above and must
 be configured once in **Settings** on the GitHub repository (not expressible in a committed file):
 
-- **Branch protection on `main`**: require pull request reviews before merging, require status
+- **Branch protection on `dev`**: require pull request reviews before merging, require status
   checks to pass, and disable direct pushes (including for maintainers, if desired).
 - **Repository access**: no direct write access granted to non-maintainers; all external
   contributions arrive as pull requests from forks.
