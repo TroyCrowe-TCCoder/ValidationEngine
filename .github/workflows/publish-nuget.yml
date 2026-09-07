@@ -53,4 +53,9 @@ jobs:
           user: TroyCrowe
 
       - name: Push all packages
-        run: dotnet nuget push "${{ github.workspace }}/nupkgs/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          $ErrorActionPreference = "Stop"
+          $packages = Get-ChildItem -Path "${{ github.workspace }}/nupkgs" -Filter *.nupkg
+          foreach ($package in $packages) {
+            dotnet nuget push $package.FullName --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+          }
