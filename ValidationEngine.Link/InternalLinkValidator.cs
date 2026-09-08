@@ -47,6 +47,11 @@ public sealed partial class InternalLinkValidator : IInternalLinkValidator
 
         var resolvedFilePath = ResolveTargetFilePath(reference.SourceFile, pathPart, repositoryRoot);
 
+        if (!string.IsNullOrEmpty(pathPart) && !IsWithinRepositoryRoot(resolvedFilePath, repositoryRoot))
+        {
+            return BuildIssue(reference, runId, app, $"Link escapes the repository root: '{pathPart}'. Relative links must resolve within this repository, not a sibling directory.");
+        }
+
         if (!string.IsNullOrEmpty(pathPart) && !File.Exists(resolvedFilePath) && !Directory.Exists(resolvedFilePath))
         {
             return BuildIssue(reference, runId, app, $"Target file not found: '{pathPart}'.");
@@ -116,6 +121,14 @@ public sealed partial class InternalLinkValidator : IInternalLinkValidator
 
         var sourceDirectory = Path.GetDirectoryName(Path.Combine(repositoryRoot, sourceFile)) ?? repositoryRoot;
         return Path.GetFullPath(Path.Combine(sourceDirectory, pathPart));
+    }
+
+    private static bool IsWithinRepositoryRoot(string resolvedFilePath, string repositoryRoot)
+    {
+        var normalizedRoot = Path.GetFullPath(repositoryRoot)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var normalizedTarget = Path.GetFullPath(resolvedFilePath);
+        return normalizedTarget.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool HeadingSlugExists(string content, string anchor)

@@ -4,6 +4,9 @@ Automated repository standards validation suite: deterministic mechanical rule c
 AI-assisted manual-only rule evaluation, markdown link validation, and Roslyn compile-time
 analyzers, all driven by a shared, editable standards corpus.
 
+New to ValidationEngine? See [ONBOARDING.md](ONBOARDING.md) for the step-by-step process to set
+up a consumer repository. This document is the architecture/reference manual.
+
 ## What It Is
 
 ValidationEngine is a suite of independently distributable .NET tools and libraries that enforce
