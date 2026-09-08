@@ -73,9 +73,24 @@ Both human developers and AI models must apply the correct root-level folder for
 
 A script that is actually invoked by an Azure Pipelines stage must reside in `.azure-pipelines/scripts/`. This folder is reserved exclusively for scripts referenced by pipeline YAML through an external file path (for example, a `File:` reference on a `PowerShell@2` or `AzureCLI@2` task). It must not be used for inline pipeline steps (`targetType: inline` / `scriptLocation: inlineScript`) — inline steps do not require an external file and `.azure-pipelines/scripts/` does not need to exist in a repository until an inline step is extracted into a standalone file.
 
-A root-level `Tools/` folder is reserved for local developer scripts that are not executed by a pipeline — for example, a local pre-PR validation script that mirrors the dev pipeline sequence per [`GlobalAzureDevOpsPipelineStandards.md`](GlobalAzureDevOpsPipelineStandards.md). `Tools/` scripts are run manually or via a developer-invoked command; they are never referenced from pipeline YAML.
+A root-level `Scripts/` folder is the single mandated location for every local developer script that is not executed by a pipeline — for example, a local pre-PR validation script that mirrors the dev pipeline sequence per [`GlobalAzureDevOpsPipelineStandards.md`](GlobalAzureDevOpsPipelineStandards.md). `Scripts/` scripts are run manually or via a developer-invoked command; they are never referenced from pipeline YAML. No other root-level folder (for example `Tools/`) may be used for this purpose — a repository must not maintain more than one local-tooling folder.
 
-`.azure-pipelines/scripts/` (pipeline-executed), `Tools/` (local developer scripts), and `Working/` (temporary session files, see [Section 2.2](#22-working-folder)) are mutually exclusive by purpose. A script must live in exactly one of these locations based on how it is invoked, never based on convenience.
+`.azure-pipelines/scripts/` (pipeline-executed) and `Scripts/` (local developer scripts; temporary session files remain governed separately under `Working/`, see [Section 2.2](#22-working-folder)) are mutually exclusive by purpose. A script must live in exactly one of these locations based on how it is invoked, never based on convenience.
+
+---
+
+## 2.4 Non-Conforming Folder and File Detection
+<!-- STD-MARKER: solution-structure.2.4 -->
+
+This standard defines what a compliant repository's folder and file structure must look like. Both human developers, AI models, and the ValidationEngine tool must apply the following three rules when determining whether a folder or file is allowed to exist in a repository.
+
+1. **Undefined folders are flagged.** Any folder not named by this standard is not allowed and must be flagged for removal by the ValidationEngine, or removed during solution cleanup processes, unless the repository's local `Standards/` addendum (per [Section 2.1](#21-repository-standards-folder)) contains a rulet approving that specific folder. There must be one rulet per undefined folder — a rulet approving one folder does not approve any other undefined folder, and an addendum that broadly permits "extra folders" without naming each one does not satisfy this requirement.
+2. **Files inside an approved folder inherit approval by default.** Once a folder is allowed — either because this standard names it, or because a `Standards/` rulet approves it under Rule 1 — every file inside that folder is automatically allowed as well, unless this standard or the approving rulet defines otherwise for that folder's contents. [Section 2.2](#22-working-folder) is the model for a folder whose contents are governed by their own inclusion rule rather than by name: `Working/` is an allowed folder, but whether a given file inside it is allowed to remain is decided by that file's own `Status:` header — a file whose `Status:` marks it as no longer active is not compliant regardless of the folder being allowed, while a file whose `Status:` marks it active is compliant even though this standard does not enumerate it individually.
+3. **Files outside any approved folder are flagged.** Any file that is not inside a folder approved under Rule 1 (or at the repository root where this standard permits root-level files) is not allowed and must be flagged for removal by the ValidationEngine, or removed during solution cleanup processes, unless the repository's local `Standards/` addendum contains a rulet approving that specific file. There must be one rulet per non-conforming file — a rulet naming one file does not approve any other file, and an addendum that broadly permits "extra files" without naming each one does not satisfy this requirement.
+
+Flagging, not deletion, is the default outcome of this detection when performed as a validation or compliance-review activity — actual removal is a separate, deliberate action taken afterward by whoever owns the change, once the flagged item has been reviewed. The ValidationEngine tool applies these same three rules programmatically and reports every non-conforming folder or file it finds as a flagged violation; a dedicated solution cleanup task may instead remove non-conforming items directly when the user has explicitly scoped that task as a cleanup rather than a validation pass.
+
+Both human developers and AI models must actively scan for undefined folders and files whenever performing any structure review, cleanup, or rollout task, not merely when a file happens to match a known bad pattern. A flag must identify the folder or file path, state which rule (1, 2, or 3) it fails, and note whether a covering rulet exists in `Standards/` for that specific item.
 
 ---
 
@@ -439,6 +454,8 @@ Remediation progress for each repository is tracked within that repository's own
 - [ ] The global error handler does not expose raw stack traces or internal error details to the caller. <!-- STD-MARKER: solution-structure.14.24 -->
 - [ ] No repository other than GlobalStandards contains a copy, duplicate, mirror, or restatement of any global standards file. <!-- STD-MARKER: solution-structure.14.25 -->
 - [ ] All folder and file names use PascalCase with no hyphenation, except where a system, platform, or third-party convention requires otherwise. <!-- STD-MARKER: solution-structure.14.26 -->
+- [ ] No undefined folder exists without an approving `Standards/` rulet, and no file exists outside an approved folder without its own approving rulet (see [Section 2.4](#24-non-conforming-folder-and-file-detection) Rules 1 and 3); any found are flagged for removal, not silently deleted, during verification. <!-- STD-MARKER: solution-structure.14.27 -->
+- [ ] The repository's local validation entry point script lives only in `Scripts/Validate.ps1`, with no duplicate copies elsewhere. <!-- STD-MARKER: solution-structure.14.28 -->
 
 ---
 
