@@ -73,7 +73,7 @@
 
 | STD-MARKER | Rule Summary | Category | Confidence | Severity | Frequency | Technique | Status |
 |---|---|---|---|---|---|---|---|
-| repository-onboarding.7 | Documented local validation script or equivalent command entry point exposed before PRs are opened, mirroring the dev-pipeline gates | Infrastructure | Binary | Hard-stop | One-Time | File-path scan: verify a documented local validation entry point (e.g., a `Tools/*.ps1` script or `RunValidationEngine.ps1` wrapper) is referenced from the repository README/copilot-instructions — duplicates `GlobalRepositoryStandards.md` repository.5 and `GlobalAzureDevOpsPipelineStandards.md` local-validation-entry-point detection | Missing |
+| repository-onboarding.7 | Documented local validation script or equivalent command entry point exposed before PRs are opened, mirroring the dev-pipeline gates | Infrastructure | Binary | Hard-stop | One-Time | File-path scan: verify a documented local validation entry point (e.g., a `Validate.ps1`/`Scripts/*.ps1` wrapper invoking the installed `validation-engine` global dotnet tool) is referenced from the repository README/copilot-instructions — duplicates `GlobalRepositoryStandards.md` repository.5 and `GlobalAzureDevOpsPipelineStandards.md` local-validation-entry-point detection | Missing |
 
 ---
 

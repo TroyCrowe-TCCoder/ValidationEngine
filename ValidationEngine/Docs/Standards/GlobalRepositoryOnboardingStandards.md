@@ -182,7 +182,7 @@ No engine code changes are required to bring a new repository under governance; 
 - [ ] Repositories that produce deployable artifacts, packages, or release bundles implement the governed release or publication path.
 - [ ] Web API and Web App repositories expose `/healthcheck`.
 - [ ] Azure service connections created at repository creation use the approved shared configuration when the repository requires Azure DevOps environment access.
-- [ ] The repository is cloned with `GlobalStandards` as a sibling directory and the local pre-commit hook wraps `RunValidationEngine.ps1 -Mode System`.
+- [ ] The installed `validation-engine` global dotnet tool is used by the local pre-commit hook (no sibling `GlobalStandards` checkout required).
 - [ ] The pipeline includes the `GlobalStandards` repository resource and the shared `change-detection.yml`/`standards-validation.yml` templates ahead of build/test/publish.
 - [ ] The pipeline build identity holds `PullRequestContribute` on the repository.
 - [ ] A Manual-mode ValidationEngine run confirms correct app-type detection and the resulting applicable standards set.

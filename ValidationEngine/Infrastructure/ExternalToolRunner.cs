@@ -18,7 +18,9 @@ namespace ValidationEngine.Infrastructure;
 /// a crash/hang in one tool cannot block or take down another) and awaiting their exit
 /// asynchronously rather than sequentially.
 /// Since these tools are invoked from the pre-commit hook (<c>.githooks/pre-commit</c> →
-/// <c>Scripts/RunValidationEngine.ps1</c>), which must stay fast, every invocation is bounded by
+/// the installed <c>validation-engine</c> global dotnet tool; contributors testing engine changes
+/// from source use <c>Scripts/BuildAndRunFromSource.dev.ps1</c> instead), which must stay fast,
+/// every invocation is bounded by
 /// <see cref="ExternalToolInvocation.TimeoutSeconds"/>: a tool that exceeds its timeout is killed
 /// and reported as a failed <see cref="ExternalToolResult"/> rather than allowed to hang the
 /// commit indefinitely.
