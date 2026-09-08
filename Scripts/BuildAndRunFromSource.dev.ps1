@@ -13,11 +13,17 @@ param(
 	[string]$TargetBranch
 )
 
-# Thin wrapper — ValidationEngine
+# DEV-ONLY build-from-source wrapper — NOT for consumer repositories.
 #
-# Invokes the compiled ValidationEngine console app (ValidationEngine/ValidationEngine.csproj)
-# against the target repository. This script contains no validation logic of its own; it only
-# ensures the published binary exists and is not older than its source before running it.
+# This script is for ValidationEngine's own contributors only. It builds ValidationEngine.csproj
+# from local source and runs the freshly published binary against a target repository, which is
+# useful for testing engine changes before they are packed/published.
+#
+# Consumer repositories (e.g. CaptiveExpensesApi) must NEVER reference this script. Consumer
+# pre-commit hooks and manual-run scripts must invoke the globally installed `validation-engine`
+# tool instead (dotnet tool install --global ValidationEngine), per
+# GlobalDeveloperOnboardingStandards.md Section 4.1/4.2. There is no sibling-repository checkout
+# requirement in the installed-tool model.
 #
 # -GlobalStandardsRoot is optional: when omitted, the engine resolves its standards source via
 # GLOBALSTANDARDS_ROOT, validationengine.config.json in the target repository, or its own
