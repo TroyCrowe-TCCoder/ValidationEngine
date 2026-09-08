@@ -173,7 +173,15 @@ public sealed class ValidationOrchestrator
             var externalToolResults = await ExternalToolRunner.RunAllAsync(_externalToolInvocations, changesetFuel, manualOnlyRules, cancellationToken);
             foreach (var externalToolResult in externalToolResults.Where(result => !result.Succeeded))
             {
-                engineErrors.Add(new EngineError { Source = externalToolResult.ToolName, Message = externalToolResult.StandardError });
+                // A sibling tool's non-zero exit code can mean either a crash (StandardError
+                // populated) or reported findings written to StandardOutput (e.g.
+                // ValidationEngine.Link exits 1 when it finds broken links, with no stderr).
+                // Surface whichever stream actually has content so findings aren't silently
+                // dropped just because they weren't routed through stderr.
+                var message = !string.IsNullOrWhiteSpace(externalToolResult.StandardError)
+                    ? externalToolResult.StandardError
+                    : externalToolResult.StandardOutput;
+                engineErrors.Add(new EngineError { Source = externalToolResult.ToolName, Message = message });
             }
 
             return new ValidationReport { Findings = findings, EngineErrors = engineErrors, RunContext = runContext };

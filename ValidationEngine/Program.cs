@@ -134,6 +134,10 @@ static void PruneHistory(string historyDirectoryPath, int maxHistoryEntries)
 static IReadOnlyList<ExternalToolInvocation> BuildExternalToolInvocations(
     string repositoryRoot, string globalStandardsRoot, ValidationRunMode mode, string? targetBranch)
 {
-    return ValidationEngineAgentInvocationFactory.Build(
+    var agentInvocations = ValidationEngineAgentInvocationFactory.Build(
         repositoryRoot, globalStandardsRoot, mode, targetBranch, AppContext.BaseDirectory);
+    var linkInvocations = ValidationEngineLinkInvocationFactory.Build(
+        repositoryRoot, mode, targetBranch, AppContext.BaseDirectory);
+
+    return [.. agentInvocations, .. linkInvocations];
 }

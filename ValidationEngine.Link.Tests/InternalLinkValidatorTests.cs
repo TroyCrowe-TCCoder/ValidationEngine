@@ -104,6 +104,42 @@ public class InternalLinkValidatorTests : IDisposable
         Assert.Null(issue);
     }
 
+    [Fact]
+    public void Validate_LinkEscapingRepositoryRoot_ReturnsIssueEvenWhenTargetExistsOnDisk()
+    {
+        // Simulates a sibling checkout (e.g. "../GlobalStandards") that happens to exist on the
+        // validating machine. The link must be flagged regardless of whether the escaped target
+        // exists, since a CI runner without that sibling checked out would otherwise see
+        // different (and non-reproducible) results than a local developer machine.
+        var siblingRoot = Directory.CreateTempSubdirectory("LinkValidationEngineTests_Sibling_").FullName;
+        try
+        {
+            var siblingRepoName = new DirectoryInfo(_repositoryRoot).Name + "_SiblingRepo";
+            var siblingFilePath = Path.Combine(siblingRoot, "Docs", "Standards", "Target.md");
+            Directory.CreateDirectory(Path.GetDirectoryName(siblingFilePath)!);
+            File.WriteAllText(siblingFilePath, "# Target\nContent.");
+
+            WriteFile("Docs/Source.md", "See [target](../../Docs/Standards/Target.md).");
+
+            var reference = new LinkReference
+            {
+                SourceFile = "Docs/Source.md",
+                RawText = "[target](../../Docs/Standards/Target.md)",
+                Target = "../../Docs/Standards/Target.md",
+                LineNumber = 1
+            };
+
+            var issue = _validator.Validate(reference, _repositoryRoot, "run-1", "TestApp");
+
+            Assert.NotNull(issue);
+            Assert.Contains("escapes the repository root", issue!.Issue, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(siblingRoot, recursive: true);
+        }
+    }
+
     private void WriteFile(string relativePath, string content)
     {
         var fullPath = Path.Combine(_repositoryRoot, relativePath);
