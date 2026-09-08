@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
@@ -13,6 +13,7 @@
     <NoPackageAnalysis>true</NoPackageAnalysis>
 
     <PackageId>ValidationEngine.Analyzers</PackageId>
+    <Version>1.0.1</Version>
     <Authors>Troy C</Authors>
     <Company>TC-Coder</Company>
     <Description>Roslyn analyzers enforcing ValidationEngine coding, security, caching, database, logging, performance, and testing standards.</Description>
@@ -27,9 +28,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.11.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.9.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
