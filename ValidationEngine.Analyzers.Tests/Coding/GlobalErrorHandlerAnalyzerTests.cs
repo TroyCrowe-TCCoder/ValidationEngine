@@ -90,5 +90,96 @@ namespace TestApp
 
             await test.RunAsync();
         }
+
+        [Fact]
+        public async Task WhenCustomMiddlewarePrecedesUseExceptionHandlerThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+namespace TestApp
+{
+    public class WebApplication
+    {
+        public void UseMiddleware<T>()
+        {
+        }
+
+        public void UseExceptionHandler()
+        {
+        }
+
+        public void UseRouting()
+        {
+        }
+    }
+
+    public class CorrelationIdMiddleware
+    {
+    }
+
+    public class Program
+    {
+        public static void Main(string[] args)
+        {
+            var app = new WebApplication();
+            app.UseMiddleware<CorrelationIdMiddleware>();
+            app.UseExceptionHandler();
+            app.UseRouting();
+        }
     }
 }
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenResponseProducingMiddlewarePrecedesUseExceptionHandlerAfterCustomMiddlewareThenCode016IsReported()
+        {
+            const string source = @"
+namespace TestApp
+{
+    public class WebApplication
+    {
+        public void UseMiddleware<T>()
+        {
+        }
+
+        public void UseRouting()
+        {
+        }
+
+        public void UseExceptionHandler()
+        {
+        }
+    }
+
+    public class CorrelationIdMiddleware
+    {
+    }
+
+    public class Program
+    {
+        public static void Main(string[] args)
+        {
+            var app = new WebApplication();
+            app.UseMiddleware<CorrelationIdMiddleware>();
+            {|#0:app.UseRouting()|};
+            app.UseExceptionHandler();
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(GlobalErrorHandlerAnalyzer.Rule)
+                    .WithLocation(0)
+                    .WithArguments("UseRouting"));
+
+            await test.RunAsync();
+        }
+    }
+}
+

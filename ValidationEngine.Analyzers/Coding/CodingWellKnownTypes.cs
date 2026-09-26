@@ -28,6 +28,28 @@ namespace ValidationEngine.Analyzers.Coding
         public const string AddAuthorizationMethodName = "AddAuthorization";
         public const string UseExceptionHandlerMethodName = "UseExceptionHandler";
 
+        /// <summary>
+        /// Standard ASP.NET Core middleware registration methods that Microsoft's own middleware
+        /// ordering guidance places after exception handling in the request pipeline (routing,
+        /// CORS, authentication/authorization, response caching/compression, static files, and
+        /// endpoint execution). Only these well-known methods disqualify a pipeline from having
+        /// its global error handler registered soon enough; any other <c>Use*</c> call (including
+        /// custom <c>UseMiddleware&lt;T&gt;()</c> registrations such as correlation-id or
+        /// request-logging middleware) is a consumer-specific, pass-through concern and is allowed
+        /// to precede <c>UseExceptionHandler</c> without violating GlobalCodingStandards.md
+        /// coding.7 (see https://learn.microsoft.com/aspnet/core/fundamentals/middleware/#middleware-order).
+        /// </summary>
+        public static readonly ImmutableArray<string> MiddlewareRequiringPriorExceptionHandling = ImmutableArray.Create(
+            "UseRouting",
+            "UseCors",
+            "UseAuthentication",
+            "UseAuthorization",
+            "UseSession",
+            "UseResponseCaching",
+            "UseResponseCompression",
+            "UseStaticFiles",
+            "UseEndpoints");
+
         public const string GetServiceMethodName = "GetService";
         public const string GetRequiredServiceMethodName = "GetRequiredService";
 

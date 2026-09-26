@@ -85,6 +85,16 @@ namespace ValidationEngine.Analyzers.Coding
                 return;
             }
 
+            if (IsInsideServiceProviderFactoryDelegate(invocation, context.SemanticModel, serviceProviderSymbol, context.CancellationToken))
+            {
+                // Resolution inside a DI registration factory delegate (e.g.
+                // services.AddScoped<TInterface>(provider => ...)) is a composition-root
+                // concern, not the service-locator anti-pattern: the delegate itself is only
+                // ever invoked by the container when building the graph, and this is the
+                // standard ASP.NET Core decorator/proxy registration pattern.
+                return;
+            }
+
             if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol)
             {
                 return;
@@ -103,6 +113,37 @@ namespace ValidationEngine.Analyzers.Coding
 
             var diagnostic = Diagnostic.Create(Rule, invocation.GetLocation(), containingTypeName, methodName);
             context.ReportDiagnostic(diagnostic);
+        }
+
+        private static bool IsInsideServiceProviderFactoryDelegate(
+            InvocationExpressionSyntax invocation,
+            SemanticModel semanticModel,
+            INamedTypeSymbol serviceProviderSymbol,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            foreach (SyntaxNode ancestor in invocation.Ancestors())
+            {
+                if (ancestor is not (SimpleLambdaExpressionSyntax or ParenthesizedLambdaExpressionSyntax or AnonymousMethodExpressionSyntax))
+                {
+                    continue;
+                }
+
+                if (semanticModel.GetSymbolInfo(ancestor, cancellationToken).Symbol is not IMethodSymbol lambdaSymbol ||
+                    lambdaSymbol.Parameters.Length == 0)
+                {
+                    continue;
+                }
+
+                ITypeSymbol parameterType = lambdaSymbol.Parameters[0].Type;
+
+                if (SymbolEqualityComparer.Default.Equals(parameterType, serviceProviderSymbol) ||
+                    ImplementsServiceProvider(parameterType, serviceProviderSymbol))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool IsServiceProviderMember(IMethodSymbol methodSymbol, INamedTypeSymbol serviceProviderSymbol)

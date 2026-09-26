@@ -62,5 +62,3 @@ found, and `2` on an unrecoverable I/O or invocation error.
 ## License
 
 MIT — see [LICENSE](https://github.com/TroyCrowe-TCCoder/ValidationEngine/blob/main/LICENSE).
-
-MIT — see [LICENSE](https://github.com/TroyCrowe-TCCoder/ValidationEngine/blob/main/LICENSE).

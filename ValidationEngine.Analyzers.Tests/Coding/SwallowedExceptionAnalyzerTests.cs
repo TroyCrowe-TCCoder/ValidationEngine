@@ -135,6 +135,117 @@ namespace TestApp
         }
 
         [Fact]
+        public async Task WhenCatchBlockLogsExceptionViaNullConditionalLoggerThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System;
+
+namespace TestApp
+{
+    public class Logger
+    {
+        public void LogError(string message, Exception ex)
+        {
+        }
+    }
+
+    public class InvoiceService
+    {
+        private readonly Logger? _logger;
+
+        public void Process()
+        {
+            try
+            {
+                DoWork();
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger?.LogError(""Failed to process invoice"", ex);
+            }
+        }
+
+        private void DoWork()
+        {
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenCatchBlockIsEmptyForOperationCanceledExceptionThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System;
+using System.Threading;
+
+namespace TestApp
+{
+    public class InvoiceService
+    {
+        public bool Process(CancellationToken token)
+        {
+            try
+            {
+                DoWork(token);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
+        }
+
+        private void DoWork(CancellationToken token)
+        {
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenCatchBlockIsEmptyForTaskCanceledExceptionThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System;
+using System.Threading.Tasks;
+
+namespace TestApp
+{
+    public class InvoiceService
+    {
+        public async Task<bool> ProcessAsync()
+        {
+            try
+            {
+                await Task.Delay(1);
+                return true;
+            }
+            catch (TaskCanceledException)
+            {
+                return false;
+            }
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
         public async Task WhenCatchBlockRethrowsThenNoDiagnosticIsReported()
         {
             const string source = @"

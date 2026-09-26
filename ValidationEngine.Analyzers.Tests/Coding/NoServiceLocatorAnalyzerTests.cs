@@ -141,5 +141,44 @@ namespace TestApp
 
             await test.RunAsync();
         }
+
+        [Fact]
+        public async Task WhenServiceIsResolvedInsideDiRegistrationFactoryDelegateThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace TestApp
+{
+    public interface IExpenseRepository
+    {
+    }
+
+    public class ExpenseRepository : IExpenseRepository
+    {
+    }
+
+    public static class ServiceCollectionExtensions
+    {
+        public static IServiceCollection AddAuditedScoped(this IServiceCollection services)
+        {
+            services.AddScoped<IExpenseRepository>(provider =>
+            {
+                var decorated = provider.GetRequiredService<ExpenseRepository>();
+                var extra = provider.GetService<ExpenseRepository>();
+                return decorated;
+            });
+
+            return services;
+        }
+    }
+}
+";
+
+            var test = CreateTest(source, "ServiceCollectionExtensions.cs");
+
+            await test.RunAsync();
+        }
     }
 }
