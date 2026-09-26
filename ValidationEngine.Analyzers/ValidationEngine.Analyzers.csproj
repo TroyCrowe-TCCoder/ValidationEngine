@@ -13,7 +13,7 @@
     <NoPackageAnalysis>true</NoPackageAnalysis>
 
     <PackageId>ValidationEngine.Analyzers</PackageId>
-    <Version>1.0.4</Version>
+    <Version>1.0.5</Version>
     <Authors>Troy C</Authors>
     <Company>TC-Coder</Company>
     <Description>Roslyn analyzers enforcing ValidationEngine coding, security, caching, database, logging, performance, and testing standards.</Description>

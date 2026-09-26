@@ -46,7 +46,7 @@ or in the `.csproj`:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="ValidationEngine.Analyzers" Version="1.0.4" PrivateAssets="all" />
+  <PackageReference Include="ValidationEngine.Analyzers" Version="1.0.5" PrivateAssets="all" />
 </ItemGroup>
 ```
 
