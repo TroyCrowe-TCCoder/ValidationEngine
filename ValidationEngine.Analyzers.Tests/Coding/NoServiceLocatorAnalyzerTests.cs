@@ -180,5 +180,41 @@ namespace TestApp
 
             await test.RunAsync();
         }
+
+        [Fact]
+        public async Task WhenTestMethodResolvesDependencyViaGetRequiredServiceThenCode015IsNotReported()
+        {
+            const string source = @"
+using System;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace TestApp
+{
+    public interface IExpenseRepository
+    {
+    }
+
+    public class ExpenseServiceTests
+    {
+        [Fact]
+        public void ConstructorThrowsArgumentNullExceptionWhenDependencyIsNull()
+        {
+            var services = new ServiceCollection();
+            var provider = services.BuildServiceProvider();
+
+            var factory = provider.GetRequiredService<IServiceScopeFactory>();
+        }
+    }
+}
+";
+
+            var test = CreateTest(source, "ExpenseServiceTests.cs");
+            test.TestState.AdditionalReferences.Add(typeof(FactAttribute).Assembly);
+            test.TestState.AdditionalReferences.Add(
+                typeof(Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions).Assembly);
+
+            await test.RunAsync();
+        }
     }
 }
