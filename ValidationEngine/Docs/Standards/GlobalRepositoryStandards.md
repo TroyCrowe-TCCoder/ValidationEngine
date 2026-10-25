@@ -140,9 +140,7 @@ For `dev → main` PRs in the current delivery model, auto-complete must wait on
 ### 4.5 Merge Strategy
 <!-- STD-MARKER: repository.4.5 -->
 
-No specific merge strategy (squash, rebase, or basic merge) is mandated by default for `dev` or `main`. A repository may allow any combination of merge types unless an approved repository-specific deviation restricts them. The source (feature) branch must still be deleted automatically on merge.
-
-The automated carry-forward PR chain described in [Section 6](#6-dev-to-main-promotion-pr-manual) does not depend on a specific merge strategy being enforced.
+Every pull request into `dev` or `main` must complete with a basic merge (merge commit, no fast-forward). Squash merge, rebase, and rebase-and-merge must not be used. Squash merges create a commit on the target branch that the source branch does not contain, which makes `dev` and `main` diverge and produces merge conflicts on every following `dev → main` PR. The source (feature) branch must still be deleted automatically on merge.
 
 ### 4.6 Required Reviewer
 <!-- STD-MARKER: repository.4.6 -->
@@ -212,7 +210,7 @@ The following policies must be configured in Azure DevOps for every repository u
 | Policy | Setting |
 |---|---|
 | Require a minimum number of reviewers | Minimum reviewers: 1; Required reviewer: Troy Crowe; Block self-approval: yes, unless an approved repository-specific deviation removes or replaces the reviewer requirement |
-| Require a merge strategy | Not mandated — any merge type may be allowed unless an approved repository-specific deviation restricts them |
+| Require a merge strategy | Basic merge (no fast-forward) only; squash, rebase, and rebase-and-merge are disabled |
 | Build validation | Validation pipeline registered and set as required; trigger: automatic |
 | Delete source branch | Enabled — delete feature branch automatically on merge |
 
@@ -221,7 +219,7 @@ The following policies must be configured in Azure DevOps for every repository u
 
 | Policy | Setting |
 |---|---|
-| Require a merge strategy | Not mandated — any merge type may be allowed unless an approved repository-specific deviation restricts them |
+| Require a merge strategy | Basic merge (no fast-forward) only; squash, rebase, and rebase-and-merge are disabled |
 | Delete source branch | Enabled — delete `dev`-equivalent source on merge |
 
 No reviewer approval policy is required on `main`. Promotion from `dev → main` is gated by the delivery time-window check enforced in the production pipeline. See [`GlobalAzureDevOpsPipelineStandards.md` Section 2.3](GlobalAzureDevOpsPipelineStandards.md#23-production-environment) for the required window check implementation.
