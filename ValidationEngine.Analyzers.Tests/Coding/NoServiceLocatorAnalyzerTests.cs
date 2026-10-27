@@ -141,5 +141,80 @@ namespace TestApp
 
             await test.RunAsync();
         }
+
+        [Fact]
+        public async Task WhenServiceIsResolvedInsideDiRegistrationFactoryDelegateThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace TestApp
+{
+    public interface IExpenseRepository
+    {
+    }
+
+    public class ExpenseRepository : IExpenseRepository
+    {
+    }
+
+    public static class ServiceCollectionExtensions
+    {
+        public static IServiceCollection AddAuditedScoped(this IServiceCollection services)
+        {
+            services.AddScoped<IExpenseRepository>(provider =>
+            {
+                var decorated = provider.GetRequiredService<ExpenseRepository>();
+                var extra = provider.GetService<ExpenseRepository>();
+                return decorated;
+            });
+
+            return services;
+        }
+    }
+}
+";
+
+            var test = CreateTest(source, "ServiceCollectionExtensions.cs");
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenTestMethodResolvesDependencyViaGetRequiredServiceThenCode015IsNotReported()
+        {
+            const string source = @"
+using System;
+using Microsoft.Extensions.DependencyInjection;
+using Xunit;
+
+namespace TestApp
+{
+    public interface IExpenseRepository
+    {
+    }
+
+    public class ExpenseServiceTests
+    {
+        [Fact]
+        public void ConstructorThrowsArgumentNullExceptionWhenDependencyIsNull()
+        {
+            var services = new ServiceCollection();
+            var provider = services.BuildServiceProvider();
+
+            var factory = provider.GetRequiredService<IServiceScopeFactory>();
+        }
+    }
+}
+";
+
+            var test = CreateTest(source, "ExpenseServiceTests.cs");
+            test.TestState.AdditionalReferences.Add(typeof(FactAttribute).Assembly);
+            test.TestState.AdditionalReferences.Add(
+                typeof(Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions).Assembly);
+
+            await test.RunAsync();
+        }
     }
 }

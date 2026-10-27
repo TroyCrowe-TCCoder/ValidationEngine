@@ -11,6 +11,9 @@ namespace ValidationEngine.Analyzers.Coding
     /// Enforces GlobalCodingStandards.md coding.7.3: exceptions must not be caught and discarded
     /// silently. Every caught exception must be logged or rethrown. Flags empty catch blocks and
     /// catch blocks with no <c>Log*</c> call and no <c>throw</c>/<c>throw;</c> statement.
+    /// Exempt: catch blocks for <see cref="System.OperationCanceledException"/> /
+    /// <see cref="System.Threading.Tasks.TaskCanceledException"/>, since observing an expected
+    /// cancellation is not an error condition.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class SwallowedExceptionAnalyzer : DiagnosticAnalyzer
@@ -18,6 +21,16 @@ namespace ValidationEngine.Analyzers.Coding
         public const string DiagnosticId = "CODE018";
 
         private const string LogMethodNamePrefix = "Log";
+
+        private static readonly string[] ExemptCancellationExceptionTypeNames =
+        [
+            "OperationCanceledException",
+            "System.OperationCanceledException",
+            "global::System.OperationCanceledException",
+            "TaskCanceledException",
+            "System.Threading.Tasks.TaskCanceledException",
+            "global::System.Threading.Tasks.TaskCanceledException",
+        ];
 
         private static readonly LocalizableString Title =
             "Caught exceptions must not be swallowed silently";
@@ -69,10 +82,42 @@ namespace ValidationEngine.Analyzers.Coding
                 return;
             }
 
+            if (IsExemptCancellationCatch(catchClause))
+            {
+                return;
+            }
+
             string exceptionTypeName = catchClause.Declaration?.Type?.ToString() ?? "Exception";
 
             var diagnostic = Diagnostic.Create(Rule, catchClause.CatchKeyword.GetLocation(), exceptionTypeName);
             context.ReportDiagnostic(diagnostic);
+        }
+
+        /// <summary>
+        /// Cancellation is expected control flow, not an error condition: catching
+        /// <see cref="System.OperationCanceledException"/> (or its
+        /// <see cref="System.Threading.Tasks.TaskCanceledException"/> subclass) to observe an
+        /// intentional cancellation (e.g. a caller-supplied token or a timeout) is the documented,
+        /// idiomatic .NET pattern and must not be forced to log or rethrow.
+        /// </summary>
+        private static bool IsExemptCancellationCatch(CatchClauseSyntax catchClause)
+        {
+            string? typeName = catchClause.Declaration?.Type?.ToString();
+
+            if (typeName is null)
+            {
+                return false;
+            }
+
+            foreach (var exemptTypeName in ExemptCancellationExceptionTypeNames)
+            {
+                if (string.Equals(typeName, exemptTypeName, System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool HasThrowStatement(BlockSyntax block)
@@ -88,6 +133,7 @@ namespace ValidationEngine.Analyzers.Coding
                 string? methodName = invocation.Expression switch
                 {
                     MemberAccessExpressionSyntax memberAccess => memberAccess.Name.Identifier.ValueText,
+                    MemberBindingExpressionSyntax memberBinding => memberBinding.Name.Identifier.ValueText,
                     IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
                     _ => null,
                 };
