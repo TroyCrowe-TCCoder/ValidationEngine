@@ -60,7 +60,7 @@ At minimum, the following must be configured before the repository is used for g
 - `dev` enforces the required reviewer policy unless an approved deviation replaces it.
 - `main` blocks direct commits.
 - `main` allows only the approved non-approval promotion policies for the `dev -> main` path unless an approved deviation adds an approval gate.
-- No specific merge strategy is mandated for `dev` or `main` unless an approved repository-specific deviation restricts merge types.
+- `dev` and `main` allow only basic merge (no fast-forward); squash, rebase, and rebase-and-merge are disabled.
 
 ---
 
