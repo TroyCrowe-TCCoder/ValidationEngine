@@ -65,5 +65,87 @@ namespace TestApp
 			var test = CreateTest(source);
 			await test.RunAsync();
 		}
+
+		[Fact]
+		public async Task WhenAsyncMethodIsFactTestMethodThenNoDiagnosticReported()
+		{
+			const string source = @"
+using System;
+using System.Threading.Tasks;
+
+namespace TestApp
+{
+	[AttributeUsage(AttributeTargets.Method)]
+	public class FactAttribute : Attribute
+	{
+	}
+
+	public class ServiceTests
+	{
+		[Fact]
+		public async Task DoWorkAsyncTest()
+		{
+			await Task.Delay(1);
+		}
+	}
+}";
+
+			var test = CreateTest(source);
+			await test.RunAsync();
+		}
+
+		[Fact]
+		public async Task WhenAsyncMethodIsTheoryTestMethodThenNoDiagnosticReported()
+		{
+			const string source = @"
+using System;
+using System.Threading.Tasks;
+
+namespace TestApp
+{
+	[AttributeUsage(AttributeTargets.Method)]
+	public class TheoryAttribute : Attribute
+	{
+	}
+
+	public class ServiceTests
+	{
+		[Theory]
+		public async Task DoWorkAsyncTest(int value)
+		{
+			await Task.Delay(value);
+		}
+	}
+}";
+
+			var test = CreateTest(source);
+			await test.RunAsync();
+		}
+
+		[Fact]
+		public async Task WhenAsyncMethodIsTestHelperClassWithoutTestAttributeThenDiagnosticReported()
+		{
+			const string source = @"
+using System.Threading.Tasks;
+
+namespace TestApp
+{
+	public class TestWidgetService
+	{
+		public async Task {|#0:SaveWidgetAsync|}()
+		{
+			await Task.Delay(1);
+		}
+	}
+}";
+
+			var test = CreateTest(source);
+			test.ExpectedDiagnostics.Add(
+				new DiagnosticResult(AsyncMethodMissingCancellationTokenAnalyzer.Rule)
+					.WithLocation(0)
+					.WithArguments("SaveWidgetAsync"));
+
+			await test.RunAsync();
+		}
 	}
 }

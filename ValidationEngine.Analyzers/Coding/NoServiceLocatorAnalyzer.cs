@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -11,12 +12,23 @@ namespace ValidationEngine.Analyzers.Coding
     /// container at the application entry point, service locator patterns must not be used inside
     /// services, and dependencies must be injected via constructor. Flags
     /// <c>IServiceProvider.GetService</c>/<c>GetRequiredService</c> calls made outside Program.cs
-    /// (the service-locator anti-pattern).
+    /// (the service-locator anti-pattern). Calls made directly within a test method (decorated
+    /// with xUnit '[Fact]'/'[Theory]' or MSTest '[TestMethod]') are exempt: building a small,
+    /// local <c>ServiceProvider</c> in a test to satisfy a constructor dependency is a standard
+    /// test-arrangement pattern, not the runtime service-locator anti-pattern the rule targets.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class NoServiceLocatorAnalyzer : DiagnosticAnalyzer
     {
         public const string DiagnosticId = "CODE015";
+
+        private static readonly ImmutableArray<string> TestMethodAttributeNames = ImmutableArray.Create(
+            "Fact",
+            "FactAttribute",
+            "Theory",
+            "TheoryAttribute",
+            "TestMethod",
+            "TestMethodAttribute");
 
         private static readonly LocalizableString Title =
             "Service locator pattern must not be used";
@@ -85,6 +97,24 @@ namespace ValidationEngine.Analyzers.Coding
                 return;
             }
 
+            if (IsInsideServiceProviderFactoryDelegate(invocation, context.SemanticModel, serviceProviderSymbol, context.CancellationToken))
+            {
+                // Resolution inside a DI registration factory delegate (e.g.
+                // services.AddScoped<TInterface>(provider => ...)) is a composition-root
+                // concern, not the service-locator anti-pattern: the delegate itself is only
+                // ever invoked by the container when building the graph, and this is the
+                // standard ASP.NET Core decorator/proxy registration pattern.
+                return;
+            }
+
+            if (IsInsideTestMethod(invocation))
+            {
+                // Resolution directly inside a test method is standard test arrangement (e.g.
+                // building a local ServiceProvider to satisfy a constructor dependency), not the
+                // runtime service-locator anti-pattern this rule targets.
+                return;
+            }
+
             if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol)
             {
                 return;
@@ -105,6 +135,37 @@ namespace ValidationEngine.Analyzers.Coding
             context.ReportDiagnostic(diagnostic);
         }
 
+        private static bool IsInsideServiceProviderFactoryDelegate(
+            InvocationExpressionSyntax invocation,
+            SemanticModel semanticModel,
+            INamedTypeSymbol serviceProviderSymbol,
+            System.Threading.CancellationToken cancellationToken)
+        {
+            foreach (SyntaxNode ancestor in invocation.Ancestors())
+            {
+                if (ancestor is not (SimpleLambdaExpressionSyntax or ParenthesizedLambdaExpressionSyntax or AnonymousMethodExpressionSyntax))
+                {
+                    continue;
+                }
+
+                if (semanticModel.GetSymbolInfo(ancestor, cancellationToken).Symbol is not IMethodSymbol lambdaSymbol ||
+                    lambdaSymbol.Parameters.Length == 0)
+                {
+                    continue;
+                }
+
+                ITypeSymbol parameterType = lambdaSymbol.Parameters[0].Type;
+
+                if (SymbolEqualityComparer.Default.Equals(parameterType, serviceProviderSymbol) ||
+                    ImplementsServiceProvider(parameterType, serviceProviderSymbol))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static bool IsServiceProviderMember(IMethodSymbol methodSymbol, INamedTypeSymbol serviceProviderSymbol)
         {
             IMethodSymbol targetMethod = methodSymbol.ReducedFrom ?? methodSymbol;
@@ -119,6 +180,37 @@ namespace ValidationEngine.Analyzers.Coding
             {
                 ITypeSymbol receiverType = targetMethod.Parameters[0].Type;
                 return ImplementsServiceProvider(receiverType, serviceProviderSymbol);
+            }
+
+            return false;
+        }
+
+        private static bool IsInsideTestMethod(InvocationExpressionSyntax invocation)
+        {
+            MethodDeclarationSyntax? method = invocation
+                .Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .FirstOrDefault();
+
+            if (method is null)
+            {
+                return false;
+            }
+
+            foreach (AttributeListSyntax attributeList in method.AttributeLists)
+            {
+                foreach (AttributeSyntax attribute in attributeList.Attributes)
+                {
+                    string attributeName = attribute.Name.ToString();
+                    string simpleName = attributeName.Contains('.')
+                        ? attributeName.Substring(attributeName.LastIndexOf('.') + 1)
+                        : attributeName;
+
+                    if (TestMethodAttributeNames.Contains(simpleName))
+                    {
+                        return true;
+                    }
+                }
             }
 
             return false;

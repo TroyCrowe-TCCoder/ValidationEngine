@@ -12,12 +12,25 @@ namespace ValidationEngine.Analyzers.Performance
 	/// forward a 'CancellationToken'. Flags any method returning 'Task', 'Task&lt;T&gt;', 'ValueTask',
 	/// or 'ValueTask&lt;T&gt;' that does not declare a 'CancellationToken' parameter. Interface/abstract
 	/// method declarations, overrides, and explicit interface implementations are still flagged
-	/// because the token must be threaded through the entire call chain.
+	/// because the token must be threaded through the entire call chain. Test methods themselves
+	/// (decorated with xUnit '[Fact]'/'[Theory]' or MSTest '[TestMethod]') are exempt: they are
+	/// entry points invoked by the test runner, not part of a production call chain, so requiring
+	/// a caller-supplied token provides no value. Test helper/double classes (e.g. fakes/stubs that
+	/// mimic a production interface) are NOT exempt, since a token-less double can mask a real
+	/// interface mismatch.
 	/// </summary>
 	[DiagnosticAnalyzer(LanguageNames.CSharp)]
 	public sealed class AsyncMethodMissingCancellationTokenAnalyzer : DiagnosticAnalyzer
 	{
 		public const string DiagnosticId = "PERF001";
+
+		private static readonly ImmutableArray<string> TestMethodAttributeNames = ImmutableArray.Create(
+			"Fact",
+			"FactAttribute",
+			"Theory",
+			"TheoryAttribute",
+			"TestMethod",
+			"TestMethodAttribute");
 
 		private static readonly LocalizableString Title =
 			"Async methods must accept a CancellationToken";
@@ -65,6 +78,11 @@ namespace ValidationEngine.Analyzers.Performance
 				return;
 			}
 
+			if (IsTestMethod(methodDeclaration))
+			{
+				return;
+			}
+
 			if (methodDeclaration.Body is null && methodDeclaration.ExpressionBody is null)
 			{
 				// Interface/abstract declaration with no body still must expose the token in its
@@ -84,6 +102,29 @@ namespace ValidationEngine.Analyzers.Performance
 				Rule,
 				methodDeclaration.Identifier.GetLocation(),
 				methodDeclaration.Identifier.ValueText));
+		}
+
+		private static bool IsTestMethod(MethodDeclarationSyntax methodDeclaration)
+		{
+			foreach (AttributeListSyntax attributeList in methodDeclaration.AttributeLists)
+			{
+				foreach (AttributeSyntax attribute in attributeList.Attributes)
+				{
+					string attributeName = attribute.Name switch
+					{
+						IdentifierNameSyntax identifierName => identifierName.Identifier.ValueText,
+						QualifiedNameSyntax qualifiedName => qualifiedName.Right.Identifier.ValueText,
+						_ => attribute.Name.ToString(),
+					};
+
+					if (TestMethodAttributeNames.Contains(attributeName))
+					{
+						return true;
+					}
+				}
+			}
+
+			return false;
 		}
 
 		private static bool IsAsyncOrTaskLike(MethodDeclarationSyntax methodDeclaration)

@@ -10,10 +10,15 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Coding
 {
     /// <summary>
-    /// Enforces GlobalCodingStandards.md coding.7: a global error handler must be registered as the
-    /// outermost layer of the request pipeline. Flags Program.cs when the first middleware
-    /// registration ("Use*" invocation) is not UseExceptionHandler, indicating the global error
-    /// handler is missing entirely or is not the outermost pipeline layer.
+    /// Enforces GlobalCodingStandards.md coding.7: a global error handler must be registered
+    /// before any middleware that can produce a client-visible response for a request that later
+    /// throws (routing, CORS, auth, static files, endpoint execution, etc. — see
+    /// <see cref="CodingWellKnownTypes.MiddlewareRequiringPriorExceptionHandling"/>). Flags
+    /// Program.cs when one of those well-known middleware registrations precedes
+    /// UseExceptionHandler. Custom, non-error-handling <c>Use*</c>/<c>UseMiddleware&lt;T&gt;()</c>
+    /// registrations (e.g. correlation-id or request-logging middleware) are consumer-specific
+    /// pass-through concerns and are allowed ahead of the exception handler; this analyzer does
+    /// not assume any particular consumer's error-handling architecture.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class GlobalErrorHandlerAnalyzer : DiagnosticAnalyzer
@@ -23,10 +28,10 @@ namespace ValidationEngine.Analyzers.Coding
         private const string UsePrefix = "Use";
 
         private static readonly LocalizableString Title =
-            "Global exception handler must be the outermost middleware";
+            "Global exception handler must be registered before response-producing middleware";
 
         private static readonly LocalizableString MessageFormat =
-            "'{0}' is registered as the first middleware in the pipeline; UseExceptionHandler must be registered as the outermost layer of the request pipeline, per GlobalCodingStandards.md coding.7";
+            "'{0}' is registered before UseExceptionHandler; the global error handler must be registered before any middleware that can produce a client-visible response, per GlobalCodingStandards.md coding.7";
 
         private static readonly LocalizableString Description =
             "Every application must have a global error handler registered as the outermost layer of the " +
@@ -92,17 +97,55 @@ namespace ValidationEngine.Analyzers.Coding
                     var ordered = new List<(int Position, Location Location, string MethodName)>(middlewareCalls);
                     ordered.Sort((first, second) => first.Position.CompareTo(second.Position));
 
-                    (int _, Location location, string methodName) = ordered[0];
+                    int exceptionHandlerPosition = ordered.FindIndex(call =>
+                        string.Equals(call.MethodName, CodingWellKnownTypes.UseExceptionHandlerMethodName, System.StringComparison.Ordinal));
 
-                    if (string.Equals(methodName, CodingWellKnownTypes.UseExceptionHandlerMethodName, System.StringComparison.Ordinal))
+                    for (int i = 0; i < ordered.Count; i++)
                     {
-                        return;
+                        if (exceptionHandlerPosition >= 0 && i >= exceptionHandlerPosition)
+                        {
+                            break;
+                        }
+
+                        (int _, Location location, string methodName) = ordered[i];
+
+                        if (!IsResponseProducingMiddleware(methodName))
+                        {
+                            continue;
+                        }
+
+                        var diagnostic = Diagnostic.Create(Rule, location, methodName);
+                        compilationEndContext.ReportDiagnostic(diagnostic);
                     }
 
-                    var diagnostic = Diagnostic.Create(Rule, location, methodName);
-                    compilationEndContext.ReportDiagnostic(diagnostic);
+                    if (exceptionHandlerPosition < 0)
+                    {
+                        // No UseExceptionHandler call at all: flag the first response-producing
+                        // middleware found, or the first middleware overall if none matched.
+                        foreach ((int _, Location location, string methodName) in ordered)
+                        {
+                            if (IsResponseProducingMiddleware(methodName))
+                            {
+                                compilationEndContext.ReportDiagnostic(Diagnostic.Create(Rule, location, methodName));
+                                return;
+                            }
+                        }
+                    }
                 });
             });
+        }
+
+        private static bool IsResponseProducingMiddleware(string methodName)
+        {
+            foreach (string candidate in CodingWellKnownTypes.MiddlewareRequiringPriorExceptionHandling)
+            {
+                if (string.Equals(methodName, candidate, System.StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }
