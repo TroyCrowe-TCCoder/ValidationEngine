@@ -206,8 +206,6 @@ Writing to the database (`bool` → `Int16` for the SQL parameter):
 isArchived = data == true ? (Int16)1 : (Int16)0;
 ```
 
-**String types** — `VARCHAR` is the required string type. `NVARCHAR` must not be used. `NVARCHAR` stores Unicode (UTF-16) at 2 bytes per character — double the storage cost of `VARCHAR` for the same content. No current data domain in this schema requires Unicode storage, and the additional overhead has no benefit. If a future requirement genuinely demands Unicode storage it must be justified and approved as a documented deviation before any `NVARCHAR` column is created.
-
 `VARCHAR` length must reflect the maximum realistic value for the column's domain. Common reference lengths used in this schema:
 
 | Length | Typical use |
@@ -219,8 +217,6 @@ isArchived = data == true ? (Int16)1 : (Int16)0;
 | `VARCHAR(500)` | URLs, long descriptive fields |
 
 `VARCHAR(MAX)` and oversized fixed lengths such as `VARCHAR(500)` must not be used when the domain clearly fits a smaller size. Length decisions must be documented in the schema change script comment when they are not self-evident from the column name.
-
-**Date types** — `DATETIME` is the standard date column type. `DATETIME2` must not be used. `DATE` is permitted when no time component is needed. `SMALLDATETIME` is permitted for columns where minute-level precision is sufficient and storage efficiency is a priority.
 
 ---
 
@@ -699,8 +695,7 @@ Destructive changes must never rely on manual pipeline approval as the enforceme
 - [ ] `GetOrdinal` is used for all column access — positional index access is not permitted.
 - [ ] All new repository methods declare `@TenantId` and `@ClientId` as nullable leading parameters.
 - [ ] All boolean columns use `TINYINT` with a default constraint of `((0))` — `BIT` is not used.
-- [ ] All string columns use `VARCHAR` — `NVARCHAR` is not used.
-- [ ] Column and parameter data types are sized to the domain — no defaulting to `VARCHAR(MAX)`, oversized integers, or `DATETIME2`.
+- [ ] Column and parameter data types are sized to the domain — no defaulting to `VARCHAR(MAX)` or oversized integers.
 - [ ] Every table has an `INT IDENTITY(1,1)` primary key and a `UNIQUEIDENTIFIER` secondary unique field with a non-clustered unique index.
 - [ ] All tables include `CreatedDate`, `CreatedBy`, `UpdatedDate`, `UpdatedBy` audit columns.
 - [ ] Soft-deletable tables include `IsArchived TINYINT NOT NULL DEFAULT ((0))`, `ArchivedDate DATETIME NULL`, and `ArchivedBy VARCHAR(100) NULL`.
