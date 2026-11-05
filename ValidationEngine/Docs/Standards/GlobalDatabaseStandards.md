@@ -123,7 +123,11 @@ Both human developers and AI models must apply every rule in this section to all
 
 **Stored procedures:**
 - Stored procedure names must follow the pattern `{Entity}_{Verb}` — `Client_Get`, `Document_Upsert`, `AuditEntry_Delete`. When the procedure filters by a specific qualifier, the qualifier is included before the verb — `ClientByID_Get`, `DocumentsByClientId_Get`.
-- The verb must reflect the operation precisely. `Upsert` is the preferred verb for all write operations and must be backed by a SQL `MERGE` statement. `Insert` and `Update` are permitted when the operation is explicitly insert-only or update-only and a merge is not appropriate. `Get`, `Delete`, and `Archive` are also approved verbs. Generic verbs such as `Process` or `Handle` are not permitted.
+- The verb must reflect the operation precisely. `Upsert` is the preferred verb for all write operations. SQL `MERGE` must not be used for upserts, regardless of cardinality — in both cases below, use explicit `UPDATE`/`INSERT` statements instead:
+  - **Single-row** upserts (one entity/key per call, e.g. a single membership row keyed by `@UserId`/`@RoleId`): use an `UPDATE` statement followed by `IF @@ROWCOUNT = 0 BEGIN INSERT ... END`.
+  - **Bulk/collection-based** upserts, where the caller submits a full table-valued parameter (TVP) collection in one call (e.g. a role-picker UI submitting all currently-checked `RoleId`s at once rather than one call per checkbox): use three discrete set-based statements against the TVP — an `UPDATE ... FROM target INNER JOIN @Tvp AS source ON ...` to restore/update matches, an `INSERT ... SELECT ... WHERE NOT EXISTS (...)` to insert non-matches, and an `UPDATE ... SET IsArchived = 1 ... WHERE NOT EXISTS (SELECT 1 FROM @Tvp ...)` to archive existing rows that are absent from the submitted collection. This three-statement UDTT pattern is the standard, most efficient approach for fully reconciling a target table to match a submitted collection — the submitted TVP represents the complete desired state (e.g. all checked boxes), so anything not submitted is archived, not left untouched. A single-item `Delete` procedure is unnecessary for this pattern — removal is expressed simply by resubmitting the collection without that item.
+- Audit records written by an `Upsert` procedure must capture the actual action that occurred on the table (e.g., `Created`, `Updated`, `Archived`, `Unarchived`) rather than a single generic value — branch on the result of the `UPDATE`/`INSERT` to determine the correct `ActionType`.
+The `SELECT @Variable = ...` form silently leaves the variable at its previous value if the query returns no rows, and silently takes an arbitrary row if it returns several, which can mask bugs. `SET @Variable = (SELECT ...)` assigns `NULL` when no row is returned, so a missing row is explicit and can be checked, and raises an error when more than one row is returned, so failures surface immediately and are caught by the procedure's `TRY/CATCH`.
 - Stored procedure names must correspond to the repository method name they serve — `GetClientsAsync` calls `Client_Get`, `GetClientByIdAsync` calls `ClientByID_Get`.
 
 ### 4.2 Primary Keys
@@ -385,7 +389,7 @@ WHERE
 
 **Duplicate prevention** — upsert procedures that match on a name or description field must normalize the comparison value using `LOWER(LTRIM(RTRIM(...)))` to prevent case and whitespace variants from producing duplicate rows.
 
-**Existence check for list object upserts** — upsert procedures for list objects used to populate dropdowns (e.g. `ServiceProvider`, item types, categories) must perform an existence check by name before opening a transaction when no ID is supplied. If `@EntityId` is null or zero, the procedure must query the table by normalized name to resolve an existing `@EntityId` before proceeding to the `MERGE`. This prevents duplicate list entries from being created when the caller does not hold the ID. The pattern established in `ServiceProvider_Upsert` is the reference implementation:
+to resolve an existing `@EntityId` before proceeding to the `UPDATE`/`INSERT` upsert.
 
 ```sql
 DECLARE @EffectiveServiceProviderId INT = NULLIF(@ServiceProviderId, 0);
@@ -420,7 +424,7 @@ See `design-decisions.md` (DD-003; not yet created, tracked in `Working/ProjectB
 ### 6.4 Cursor Usage
 <!-- STD-MARKER: database.6.4 -->
 
-A cursor must not be written when a set-based alternative — `MERGE`, `UPDATE ... FROM`, `INSERT ... SELECT`, a derived table, a CTE, or a `WHILE` loop — can achieve the same result.
+set-based alternative — `UPDATE ... FROM`,
 
 A cursor must only be used when all of the following conditions are met:
 
@@ -710,7 +714,7 @@ Destructive changes must never rely on manual pipeline approval as the enforceme
 - [ ] All write procedures validate `TINYINT` boolean parameters as `IN (0, 1)` before opening a transaction.
 - [ ] String values written to the database are sanitized with `LEFT(LTRIM(RTRIM(ISNULL(...))), maxLength)` at the point of write.
 - [ ] Upsert procedures that match on name or description fields normalize the comparison using `LOWER(LTRIM(RTRIM(...)))` to prevent duplicate rows from case or whitespace variants.
-- [ ] Upsert procedures for list objects (dropdowns) resolve an existing ID by normalized name before the `MERGE` when no ID is supplied by the caller.
+resolve an existing ID by normalized name before the `UPDATE`/`INSERT` upsert when no ID is supplied by the caller.
 - [ ] All write procedures log full error context to `dbo.SqlErrorTracking_Insert` in the `CATCH` block and re-raise with `THROW`.
 - [ ] Write procedures that produce an inserted row use `OUTPUT inserted.{PrimaryKey}` to return the identity. Archive and soft-delete procedures return `SELECT 1` to confirm success.
 - [ ] Read procedures do not use transactions or `TRY/CATCH` unless a write side-effect is present.
