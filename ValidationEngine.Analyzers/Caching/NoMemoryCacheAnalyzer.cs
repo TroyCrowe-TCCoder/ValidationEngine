@@ -8,8 +8,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.3: Azure Cache for Redis (IDistributedCache) is the
-    /// only approved cache provider. In-process memory cache (IMemoryCache) must not be used.
+    /// Enforces GlobalCachingStandards.md caching.3: ICacheManager (TCCoder.RedisCacheManager) is the
+    /// only approved cache access. In-process memory cache (IMemoryCache) must not be used.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class NoMemoryCacheAnalyzer : DiagnosticAnalyzer
@@ -22,10 +22,10 @@ namespace ValidationEngine.Analyzers.Caching
             "IMemoryCache must not be used";
 
         private static readonly LocalizableString MessageFormat =
-            "'{0}' references IMemoryCache; use IDistributedCache (Azure Cache for Redis) instead, per GlobalCachingStandards.md caching.3";
+            "'{0}' references IMemoryCache; use ICacheManager (TCCoder.RedisCacheManager) instead, per GlobalCachingStandards.md caching.3";
 
         private static readonly LocalizableString Description =
-            "Azure Cache for Redis is the only approved cache provider for all applications. In-process " +
+            "ICacheManager is the only approved cache access for all applications. In-process " +
             "memory cache (IMemoryCache) must not be used. See GlobalCachingStandards.md Section 3.";
 
         private const string Category = "Caching";

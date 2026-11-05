@@ -12,7 +12,7 @@ namespace ValidationEngine.Analyzers.Caching
     /// Enforces GlobalCachingStandards.md caching.8.1: JSON via System.Text.Json is the required
     /// serialization format for all cache entries. Newtonsoft.Json must not be used for cache
     /// serialization. Flags Newtonsoft.Json.JsonConvert usage inside a dedicated CacheSerializer-named
-    /// class, or inside any class that also injects/uses IDistributedCache.
+    /// class, or inside any class that also injects/uses ICacheManager.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class NoNewtonsoftJsonForCacheAnalyzer : DiagnosticAnalyzer
@@ -54,8 +54,8 @@ namespace ValidationEngine.Analyzers.Caching
             {
                 INamedTypeSymbol? jsonConvertSymbol = compilationContext.Compilation.GetTypeByMetadataName(
                     CachingWellKnownTypes.NewtonsoftJsonConvertMetadataName);
-                INamedTypeSymbol? distributedCacheSymbol = compilationContext.Compilation.GetTypeByMetadataName(
-                    CachingWellKnownTypes.IDistributedCacheMetadataName);
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
 
                 if (jsonConvertSymbol is null)
                 {
@@ -64,7 +64,7 @@ namespace ValidationEngine.Analyzers.Caching
                 }
 
                 compilationContext.RegisterSyntaxNodeAction(
-                    syntaxContext => AnalyzeInvocation(syntaxContext, jsonConvertSymbol, distributedCacheSymbol),
+                    syntaxContext => AnalyzeInvocation(syntaxContext, jsonConvertSymbol, cacheManagerSymbol),
                     SyntaxKind.InvocationExpression);
             });
         }
@@ -72,7 +72,7 @@ namespace ValidationEngine.Analyzers.Caching
         private static void AnalyzeInvocation(
             SyntaxNodeAnalysisContext context,
             INamedTypeSymbol jsonConvertSymbol,
-            INamedTypeSymbol? distributedCacheSymbol)
+            INamedTypeSymbol? cacheManagerSymbol)
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
@@ -95,7 +95,7 @@ namespace ValidationEngine.Analyzers.Caching
 
             bool isCacheSerializationContext =
                 containingTypeName.EndsWith(CachingWellKnownTypes.CacheSerializerClassName, StringComparison.Ordinal) ||
-                (distributedCacheSymbol is not null && CachingWellKnownTypes.TypeUsesDistributedCache(containingType, context.SemanticModel, distributedCacheSymbol));
+                (cacheManagerSymbol is not null && CachingWellKnownTypes.TypeUsesCacheManager(containingType, context.SemanticModel, cacheManagerSymbol));
 
             if (!isCacheSerializationContext)
             {

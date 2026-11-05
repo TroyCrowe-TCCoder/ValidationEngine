@@ -63,6 +63,26 @@ namespace TestApp
         }
 
         [Fact]
+        public async Task WhenKeyMethodIsDocumentedTenantIndependentThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+namespace TestApp
+{
+    public static class CacheKeys
+    {
+        // tenant-independent: platform-wide lookup shared by all tenants
+        public static string PlatformLookup(int lookupId)
+            => $""{lookupId}:platform-lookup"";
+    }
+}
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
         public async Task WhenTenantIdIsTheFirstKeySegmentThenNoDiagnosticIsReported()
         {
             const string source = @"

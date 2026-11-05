@@ -8,8 +8,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.3.2: application services must inject
-    /// IDistributedCache; direct use of the StackExchange.Redis client
+    /// Enforces GlobalCachingStandards.md caching.3: application services must inject
+    /// ICacheManager; direct use of the StackExchange.Redis client
     /// (IConnectionMultiplexer/ConnectionMultiplexer) inside application services is not permitted.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -21,12 +21,12 @@ namespace ValidationEngine.Analyzers.Caching
             "Direct StackExchange.Redis client usage is not permitted in application services";
 
         private static readonly LocalizableString MessageFormat =
-            "'{0}' references {1}; inject IDistributedCache instead of using the StackExchange.Redis client directly, per GlobalCachingStandards.md caching.3.2";
+            "'{0}' references {1}; inject ICacheManager instead of using the StackExchange.Redis client directly, per GlobalCachingStandards.md caching.3";
 
         private static readonly LocalizableString Description =
-            "All services that read from or write to the cache must inject IDistributedCache. Direct use " +
+            "All services that read from or write to the cache must inject ICacheManager. Direct use " +
             "of the StackExchange.Redis client inside application services is not permitted. See " +
-            "GlobalCachingStandards.md Section 3.2.";
+            "GlobalCachingStandards.md Section 3.";
 
         private const string Category = "Caching";
 

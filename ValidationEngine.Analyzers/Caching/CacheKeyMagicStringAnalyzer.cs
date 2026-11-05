@@ -7,10 +7,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.4.2: all cache keys must be defined as
-    /// constants/static members in a dedicated "CacheKeys" static class. Inline magic-string keys
-    /// (raw literals or ad-hoc interpolation/concatenation) at IDistributedCache call sites are not
-    /// permitted.
+    /// Enforces GlobalCachingStandards.md caching.4: every category and id passed to ICacheManager
+    /// (TryGetAsync/SetAsync/RemoveAsync) must come from the dedicated "CacheKeys" static class. Inline
+    /// magic-string values (raw literals or ad-hoc interpolation/concatenation) are not permitted.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class CacheKeyMagicStringAnalyzer : DiagnosticAnalyzer
@@ -18,18 +17,20 @@ namespace ValidationEngine.Analyzers.Caching
         public const string DiagnosticId = "CACHE004";
 
         private static readonly ImmutableArray<string> CacheAccessMethodNames = ImmutableArray.Create(
-            "GetAsync", "SetAsync", "RemoveAsync", "RefreshAsync");
+            "TryGetAsync", "SetAsync", "RemoveAsync");
+
+        private static readonly ImmutableArray<string> KeyParameterNames = ImmutableArray.Create("category", "id");
 
         private static readonly LocalizableString Title =
-            "Cache key must come from the CacheKeys class, not an inline literal or interpolation";
+            "Cache category and id must come from the CacheKeys class, not an inline literal or interpolation";
 
         private static readonly LocalizableString MessageFormat =
-            "Cache key argument to '{0}' is built inline instead of using the CacheKeys class; define it in a dedicated CacheKeys static class per GlobalCachingStandards.md caching.4.2";
+            "The '{1}' argument to '{0}' is built inline instead of using the CacheKeys class; define it in a dedicated CacheKeys static class per GlobalCachingStandards.md caching.4";
 
         private static readonly LocalizableString Description =
-            "All cache keys must be defined as constants or static members in a dedicated CacheKeys static " +
-            "class. Magic string keys (literals or inline interpolated/concatenated strings) scattered " +
-            "throughout the codebase are not permitted. See GlobalCachingStandards.md Section 4.2.";
+            "All cache categories and ids must be defined as constants or static members in a dedicated " +
+            "CacheKeys static class. Magic strings (literals or inline interpolated/concatenated strings) " +
+            "scattered throughout the codebase are not permitted. See GlobalCachingStandards.md Section 4.";
 
         private const string Category = "Caching";
 
@@ -53,21 +54,21 @@ namespace ValidationEngine.Analyzers.Caching
 
             context.RegisterCompilationStartAction(compilationContext =>
             {
-                INamedTypeSymbol? distributedCacheSymbol = compilationContext.Compilation.GetTypeByMetadataName(
-                    CachingWellKnownTypes.IDistributedCacheMetadataName);
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
 
-                if (distributedCacheSymbol is null)
+                if (cacheManagerSymbol is null)
                 {
                     return;
                 }
 
                 compilationContext.RegisterSyntaxNodeAction(
-                    syntaxContext => AnalyzeInvocation(syntaxContext, distributedCacheSymbol),
+                    syntaxContext => AnalyzeInvocation(syntaxContext, cacheManagerSymbol),
                     SyntaxKind.InvocationExpression);
             });
         }
 
-        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, INamedTypeSymbol distributedCacheSymbol)
+        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, INamedTypeSymbol cacheManagerSymbol)
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
@@ -86,21 +87,19 @@ namespace ValidationEngine.Analyzers.Caching
             ISymbol? invokedSymbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol;
 
             if (invokedSymbol is not IMethodSymbol methodSymbol ||
-                !CachingWellKnownTypes.IsDistributedCacheMethod(methodSymbol, distributedCacheSymbol))
+                !CachingWellKnownTypes.IsCacheManagerMethod(methodSymbol, cacheManagerSymbol))
             {
                 return;
             }
 
-            if (invocation.ArgumentList.Arguments.Count == 0)
+            foreach (string parameterName in KeyParameterNames)
             {
-                return;
-            }
+                ArgumentSyntax? argument = CachingWellKnownTypes.GetArgumentForParameter(invocation, methodSymbol, parameterName);
 
-            ExpressionSyntax keyArgument = invocation.ArgumentList.Arguments[0].Expression;
-
-            if (IsInlineKeyExpression(keyArgument))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(Rule, keyArgument.GetLocation(), methodName));
+                if (argument is not null && IsInlineKeyExpression(argument.Expression))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Rule, argument.Expression.GetLocation(), methodName, parameterName));
+                }
             }
         }
 

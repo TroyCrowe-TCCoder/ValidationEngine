@@ -11,7 +11,7 @@ namespace ValidationEngine.Analyzers.Caching
     /// <summary>
     /// Enforces GlobalCachingStandards.md caching.7.1: any write operation (create, update, delete)
     /// that changes data currently held in cache must explicitly remove the affected cache entries
-    /// via IDistributedCache.RemoveAsync, passing a CancellationToken, as part of the same service
+    /// via ICacheManager.RemoveAsync, passing a CancellationToken, as part of the same service
     /// method as the write. Invalidation must not be deferred elsewhere.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -25,12 +25,11 @@ namespace ValidationEngine.Analyzers.Caching
             "Write operations in cache-aware services must invalidate affected cache entries";
 
         private static readonly LocalizableString MessageFormat =
-            "'{0}' is a write operation in a cache-aware service but does not call IDistributedCache.RemoveAsync with a CancellationToken in the same method; invalidation must occur in the same logical operation as the write, per GlobalCachingStandards.md caching.7.1";
-
+            "'{0}' is a write operation in a cache-aware service but does not call ICacheManager.RemoveAsync with a CancellationToken in the same method; invalidation must occur in the same logical operation as the write, per GlobalCachingStandards.md caching.7.1";
         private static readonly LocalizableString Description =
             "Any write operation (create, update, delete) that changes data currently held in cache " +
             "must explicitly remove the affected cache entries as part of the same logical operation. " +
-            "Invalidation must use RemoveAsync from IDistributedCache and must always pass a " +
+            "Invalidation must use RemoveAsync from ICacheManager and must always pass a " +
             "CancellationToken. Invalidation must occur in the same service method as the write - it " +
             "must not be deferred to a background process unless the staleness window is explicitly " +
             "documented and approved. See GlobalCachingStandards.md Section 7.1.";
@@ -57,12 +56,12 @@ namespace ValidationEngine.Analyzers.Caching
 
             context.RegisterCompilationStartAction(compilationContext =>
             {
-                INamedTypeSymbol? distributedCacheSymbol = compilationContext.Compilation.GetTypeByMetadataName(
-                    CachingWellKnownTypes.IDistributedCacheMetadataName);
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
 
-                if (distributedCacheSymbol is null)
+                if (cacheManagerSymbol is null)
                 {
-                    // IDistributedCache is not referenced by this compilation; nothing to flag.
+                    // ICacheManager is not referenced by this compilation; nothing to flag.
                     return;
                 }
 
@@ -70,14 +69,14 @@ namespace ValidationEngine.Analyzers.Caching
                     CancellationTokenMetadataName);
 
                 compilationContext.RegisterSyntaxNodeAction(
-                    syntaxContext => AnalyzeMethod(syntaxContext, distributedCacheSymbol, cancellationTokenSymbol),
+                    syntaxContext => AnalyzeMethod(syntaxContext, cacheManagerSymbol, cancellationTokenSymbol),
                     SyntaxKind.MethodDeclaration);
             });
         }
 
         private static void AnalyzeMethod(
             SyntaxNodeAnalysisContext context,
-            INamedTypeSymbol distributedCacheSymbol,
+            INamedTypeSymbol cacheManagerSymbol,
             INamedTypeSymbol? cancellationTokenSymbol)
         {
             var method = (MethodDeclarationSyntax)context.Node;
@@ -96,12 +95,12 @@ namespace ValidationEngine.Analyzers.Caching
             TypeDeclarationSyntax? containingType = CachingWellKnownTypes.GetContainingType(method);
 
             if (containingType is null ||
-                !CachingWellKnownTypes.TypeUsesDistributedCache(containingType, context.SemanticModel, distributedCacheSymbol))
+                !CachingWellKnownTypes.TypeUsesCacheManager(containingType, context.SemanticModel, cacheManagerSymbol))
             {
                 return;
             }
 
-            if (HasCacheInvalidationCall(method, context, distributedCacheSymbol, cancellationTokenSymbol))
+            if (HasCacheInvalidationCall(method, context, cacheManagerSymbol, cancellationTokenSymbol))
             {
                 return;
             }
@@ -112,7 +111,7 @@ namespace ValidationEngine.Analyzers.Caching
         private static bool HasCacheInvalidationCall(
             MethodDeclarationSyntax method,
             SyntaxNodeAnalysisContext context,
-            INamedTypeSymbol distributedCacheSymbol,
+            INamedTypeSymbol cacheManagerSymbol,
             INamedTypeSymbol? cancellationTokenSymbol)
         {
             SyntaxNode? body = (SyntaxNode?)method.Body ?? method.ExpressionBody;
@@ -132,7 +131,7 @@ namespace ValidationEngine.Analyzers.Caching
                 ISymbol? invokedSymbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol;
 
                 if (invokedSymbol is not IMethodSymbol methodSymbol ||
-                    !CachingWellKnownTypes.IsDistributedCacheMethod(methodSymbol, distributedCacheSymbol))
+                    !CachingWellKnownTypes.IsCacheManagerMethod(methodSymbol, cacheManagerSymbol))
                 {
                     continue;
                 }
