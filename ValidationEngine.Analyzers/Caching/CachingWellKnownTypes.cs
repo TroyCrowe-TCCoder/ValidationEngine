@@ -14,6 +14,7 @@ namespace ValidationEngine.Analyzers.Caching
     /// </summary>
     internal static class CachingWellKnownTypes
     {
+        public const string ICacheManagerMetadataName = "RedisCacheManager.Caching.ICacheManager";
         public const string IDistributedCacheMetadataName = "Microsoft.Extensions.Caching.Distributed.IDistributedCache";
         public const string ConnectionMultiplexerMetadataName = "StackExchange.Redis.ConnectionMultiplexer";
         public const string IConnectionMultiplexerMetadataName = "StackExchange.Redis.IConnectionMultiplexer";
@@ -37,11 +38,8 @@ namespace ValidationEngine.Analyzers.Caching
         public const string LongLivedCacheAttributeFullName = "LongLivedCacheAttribute";
 
         public const string SetAsyncMethodName = "SetAsync";
-        public const string SetAbsoluteExpirationMethodName = "SetAbsoluteExpiration";
-        public const string SetSlidingExpirationMethodName = "SetSlidingExpiration";
-        public const string AbsoluteExpirationRelativeToNowPropertyName = "AbsoluteExpirationRelativeToNow";
-        public const string AbsoluteExpirationPropertyName = "AbsoluteExpiration";
-        public const string SlidingExpirationPropertyName = "SlidingExpiration";
+        public const string TryGetAsyncMethodName = "TryGetAsync";
+        public const string LongLivedExpirationPropertyName = "LongLivedExpirationMinutes";
 
         /// <summary>
         /// Method-name prefixes that indicate a write operation (create, update, delete) against a
@@ -147,73 +145,53 @@ namespace ValidationEngine.Analyzers.Caching
         }
 
         /// <summary>
-        /// Returns true when <paramref name="methodSymbol"/> is a direct member of, or an extension
-        /// method whose reduced receiver is, <paramref name="distributedCacheSymbol"/> (i.e. it is a
-        /// call against an <c>IDistributedCache</c> instance, whether invoked as an instance member or
-        /// via the <c>Microsoft.Extensions.Caching.Distributed</c> extension methods).
+        /// Returns true when <paramref name="methodSymbol"/> is a member of <c>ICacheManager</c>
+        /// (<c>RedisCacheManager.Caching.ICacheManager</c>), the only cache access allowed by
+        /// GlobalCachingStandards.md caching.3.
         /// </summary>
-        public static bool IsDistributedCacheMethod(IMethodSymbol methodSymbol, INamedTypeSymbol distributedCacheSymbol)
+        public static bool IsCacheManagerMethod(IMethodSymbol methodSymbol, INamedTypeSymbol cacheManagerSymbol)
         {
-            if (SymbolEqualityComparer.Default.Equals(methodSymbol.ContainingType, distributedCacheSymbol))
-            {
-                return true;
-            }
-
             IMethodSymbol candidate = methodSymbol.ReducedFrom ?? methodSymbol;
 
-            return candidate.Parameters.Length > 0 &&
-                   SymbolEqualityComparer.Default.Equals(candidate.Parameters[0].Type, distributedCacheSymbol);
+            return SymbolEqualityComparer.Default.Equals(candidate.ContainingType, cacheManagerSymbol);
         }
 
         /// <summary>
-        /// Walks up the syntax tree from <paramref name="node"/> to find the nearest enclosing
-        /// <c>try</c> statement whose <c>try</c> block (not a <c>catch</c> or <c>finally</c> block)
-        /// contains <paramref name="node"/>, stopping at the nearest enclosing method/lambda/local
-        /// function boundary. Returns <c>null</c> if no such enclosing try statement exists.
+        /// Returns the argument bound to the parameter named <paramref name="parameterName"/> of an
+        /// <c>ICacheManager</c> invocation, whether passed by name or by position, or <c>null</c> when
+        /// the argument was omitted.
         /// </summary>
-        public static TryStatementSyntax? FindEnclosingTryStatement(SyntaxNode node)
+        public static ArgumentSyntax? GetArgumentForParameter(
+            InvocationExpressionSyntax invocation,
+            IMethodSymbol methodSymbol,
+            string parameterName)
         {
-            SyntaxNode? current = node.Parent;
-
-            while (current is not null)
+            for (int i = 0; i < invocation.ArgumentList.Arguments.Count; i++)
             {
-                if (current is MethodDeclarationSyntax or AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
+                ArgumentSyntax argument = invocation.ArgumentList.Arguments[i];
+
+                if (argument.NameColon is not null)
                 {
-                    return null;
+                    if (string.Equals(argument.NameColon.Name.Identifier.ValueText, parameterName, StringComparison.Ordinal))
+                    {
+                        return argument;
+                    }
+
+                    continue;
                 }
 
-                if (current is TryStatementSyntax tryStatement && tryStatement.Block.Span.Contains(node.Span))
+                if (i < methodSymbol.Parameters.Length &&
+                    string.Equals(methodSymbol.Parameters[i].Name, parameterName, StringComparison.Ordinal))
                 {
-                    return tryStatement;
+                    return argument;
                 }
-
-                current = current.Parent;
             }
 
             return null;
         }
 
         /// <summary>
-        /// Returns true when any <c>catch</c> clause of <paramref name="tryStatement"/> contains a
-        /// <c>throw</c> statement (bare rethrow or <c>throw new ...</c>), which would allow a cache
-        /// failure to propagate to the caller instead of degrading gracefully
-        /// (GlobalCachingStandards.md caching.9).
-        /// </summary>
-        public static bool AnyCatchClauseRethrows(TryStatementSyntax tryStatement)
-        {
-            foreach (CatchClauseSyntax catchClause in tryStatement.Catches)
-            {
-                if (catchClause.DescendantNodes().OfType<ThrowStatementSyntax>().Any())
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// Returns the matching entry from <see cref="WriteVerbPrefixes"/> if <paramref name="methodName"/>
+        /// Returns the matching entry from <see cref="WriteVerbPrefixes"/>
         /// begins with a write-verb prefix followed by a PascalCase word boundary (end-of-name, an
         /// uppercase letter, or a digit) — for example <c>"UpdateClientConfigAs
         /// <c>"Update"</c>, but <c>"Address"</c> does not match <c>"Add"</c>. Returns <c>null</c> when
@@ -246,10 +224,18 @@ namespace ValidationEngine.Analyzers.Caching
 
         /// <summary>
         /// Returns true when <paramref name="containingType"/> is a cache-aware service: it has a
-        /// constructor parameter, field, or property typed as <see cref="IDistributedCacheMetadataName"/>.
-        /// Shared by rules that only apply inside services that actually use the distributed cache
+        /// constructor parameter, field, or property typed as <c>ICacheManager</c>.
+        /// Shared by rules that only apply inside services that actually use the cache
         /// (e.g. caching.7.1, caching.8.1).
         /// </summary>
+        public static bool TypeUsesCacheManager(
+            TypeDeclarationSyntax containingType,
+            SemanticModel semanticModel,
+            INamedTypeSymbol cacheManagerSymbol)
+        {
+            return TypeUsesDistributedCache(containingType, semanticModel, cacheManagerSymbol);
+        }
+
         public static bool TypeUsesDistributedCache(
             TypeDeclarationSyntax containingType,
             SemanticModel semanticModel,

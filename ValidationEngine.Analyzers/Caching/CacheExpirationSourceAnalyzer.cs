@@ -9,10 +9,10 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.6.3: time-bounded cache expiration must be
-    /// sourced from IOptionsMonitor&lt;CacheOptions&gt;.CurrentValue. IOptions&lt;T&gt; must not be
-    /// used (it is a startup snapshot that never observes configuration changes), and hardcoded
-    /// TimeSpan literals must not be passed directly into SetAbsoluteExpiration.
+    /// Enforces GlobalCachingStandards.md caching.6.1/6.3: every <c>ICacheManager.SetAsync</c> call must
+    /// pass a <c>ttl</c> sourced from IOptionsMonitor&lt;CacheOptions&gt;.CurrentValue. Omitting the ttl (which
+    /// falls back to the package default), passing null, or passing a hardcoded TimeSpan is not permitted.
+    /// IOptions&lt;T&gt; must not be used (it is a startup snapshot that never observes configuration changes).
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class CacheExpirationSourceAnalyzer : DiagnosticAnalyzer
@@ -20,7 +20,6 @@ namespace ValidationEngine.Analyzers.Caching
         public const string DiagnosticId = "CACHE006";
 
         private const string IOptionsGenericName = "IOptions";
-        private const string SetAbsoluteExpirationMethodName = "SetAbsoluteExpiration";
         private const string TimeSpanTypeName = "TimeSpan";
         private const string CurrentValuePropertyName = "CurrentValue";
 
@@ -30,9 +29,10 @@ namespace ValidationEngine.Analyzers.Caching
         private static readonly LocalizableString MessageFormat = "{0}";
 
         private static readonly LocalizableString Description =
-            "Time-bounded cache entries must read their expiration from IOptionsMonitor<CacheOptions>.CurrentValue. " +
-            "IOptions<T> is a startup snapshot and does not pick up configuration changes without an application " +
-            "restart; hardcoded TimeSpan literals bypass configuration entirely. See GlobalCachingStandards.md Section 6.3.";
+            "Every ICacheManager.SetAsync call must pass a ttl read from IOptionsMonitor<CacheOptions>.CurrentValue. " +
+            "Omitting the ttl relies on the package default, and hardcoded TimeSpan values bypass configuration " +
+            "entirely. IOptions<T> is a startup snapshot and does not pick up configuration changes without an " +
+            "application restart. See GlobalCachingStandards.md Sections 6.1 and 6.3.";
 
         private const string Category = "Caching";
 
@@ -55,7 +55,21 @@ namespace ValidationEngine.Analyzers.Caching
             context.EnableConcurrentExecution();
 
             context.RegisterSyntaxNodeAction(AnalyzeGenericName, SyntaxKind.GenericName);
-            context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
+
+            context.RegisterCompilationStartAction(compilationContext =>
+            {
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
+
+                if (cacheManagerSymbol is null)
+                {
+                    return;
+                }
+
+                compilationContext.RegisterSyntaxNodeAction(
+                    syntaxContext => AnalyzeInvocation(syntaxContext, cacheManagerSymbol),
+                    SyntaxKind.InvocationExpression);
+            });
         }
 
         private static void AnalyzeGenericName(SyntaxNodeAnalysisContext context)
@@ -90,32 +104,56 @@ namespace ValidationEngine.Analyzers.Caching
                 $"'{genericName}' uses IOptions<{typeArgumentName}> instead of IOptionsMonitor<{typeArgumentName}>; IOptions<T> is a startup snapshot and will not observe configuration changes, per GlobalCachingStandards.md caching.6.3"));
         }
 
-        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
+        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, INamedTypeSymbol cacheManagerSymbol)
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
             if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess ||
-                memberAccess.Name.Identifier.ValueText != SetAbsoluteExpirationMethodName)
+                memberAccess.Name.Identifier.ValueText != CachingWellKnownTypes.SetAsyncMethodName)
             {
                 return;
             }
 
-            foreach (ArgumentSyntax argument in invocation.ArgumentList.Arguments)
+            if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol methodSymbol ||
+                !CachingWellKnownTypes.IsCacheManagerMethod(methodSymbol, cacheManagerSymbol))
             {
-                if (!IsTimeSpanFromInvocation(argument.Expression))
-                {
-                    continue;
-                }
+                return;
+            }
 
-                if (ReferencesCurrentValue(argument.Expression))
-                {
-                    continue;
-                }
+            if (CachingWellKnownTypes.HasLongLivedCacheAttribute(invocation, context.SemanticModel, context.CancellationToken))
+            {
+                // [LongLivedCache] methods are governed by caching.6.2 (CACHE016).
+                return;
+            }
 
+            ArgumentSyntax? ttlArgument = CachingWellKnownTypes.GetArgumentForParameter(invocation, methodSymbol, "ttl");
+
+            if (ttlArgument is null)
+            {
                 context.ReportDiagnostic(Diagnostic.Create(
                     Rule,
-                    argument.Expression.GetLocation(),
-                    $"SetAbsoluteExpiration is passed a hardcoded '{argument.Expression}' value instead of an expiration sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.3"));
+                    invocation.GetLocation(),
+                    "SetAsync does not pass a ttl and would rely on the package DefaultTtl; pass a ttl sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.1"));
+                return;
+            }
+
+            ExpressionSyntax ttlExpression = ttlArgument.Expression;
+
+            if (ttlExpression.IsKind(SyntaxKind.NullLiteralExpression) || ttlExpression.IsKind(SyntaxKind.DefaultLiteralExpression))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    Rule,
+                    ttlExpression.GetLocation(),
+                    "SetAsync passes a null ttl and would rely on the package DefaultTtl; pass a ttl sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.1"));
+                return;
+            }
+
+            if (IsTimeSpanFromInvocation(ttlExpression) && !ReferencesCurrentValue(ttlExpression))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    Rule,
+                    ttlExpression.GetLocation(),
+                    $"SetAsync is passed a hardcoded '{ttlExpression}' ttl instead of one sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.3"));
             }
         }
 

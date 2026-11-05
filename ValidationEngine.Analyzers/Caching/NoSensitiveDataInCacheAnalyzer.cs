@@ -10,9 +10,9 @@ namespace ValidationEngine.Analyzers.Caching
     /// <summary>
     /// Enforces GlobalCachingStandards.md caching.2.3 / caching.10.1: PII, authentication
     /// tokens/credentials, and financial transaction records must never be written to a cache.
-    /// Flags IDistributedCache.SetAsync call sites whose cached value - or the value passed into a
-    /// CacheSerializer.Serialize(...) call feeding it - is a variable/member or a type property/field
-    /// whose name matches a known-sensitive naming pattern (Password, Token, Ssn, CardNumber, etc.).
+    /// Flags ICacheManager.SetAsync call sites whose cached value is a variable/member or a type
+    /// property/field whose name matches a known-sensitive naming pattern (Password, Token, Ssn,
+    /// CardNumber, etc.).
     /// This is a heuristic, name-based check; it flags candidates for human review rather than
     /// providing a deterministic guarantee.
     /// </summary>
@@ -20,9 +20,6 @@ namespace ValidationEngine.Analyzers.Caching
     public sealed class NoSensitiveDataInCacheAnalyzer : DiagnosticAnalyzer
     {
         public const string DiagnosticId = "CACHE011";
-
-        private const string SetAsyncMethodName = "SetAsync";
-        private const string SerializeMethodName = "Serialize";
 
         private static readonly LocalizableString Title =
             "Sensitive data must not be written to the cache";
@@ -32,10 +29,9 @@ namespace ValidationEngine.Analyzers.Caching
 
         private static readonly LocalizableString Description =
             "Sensitive personal data (PII), authentication tokens or credentials, and financial " +
-            "transaction records must never be cached. This heuristic flags IDistributedCache.SetAsync " +
-            "call sites whose cached value - directly, or via a CacheSerializer.Serialize(...) call - " +
-            "is a variable, member, or type property/field whose name matches a known-sensitive naming " +
-            "pattern. Flagged occurrences require human confirmation; this check is a candidate " +
+            "transaction records must never be cached. This heuristic flags ICacheManager.SetAsync " +
+            "call sites whose cached value is a variable, member, or type property/field whose name " +
+            "matches a known-sensitive naming pattern. Flagged occurrences require human confirmation; this check is a candidate " +
             "detector, not a deterministic guarantee. See GlobalCachingStandards.md Sections 2.3 and 10.1.";
 
         private const string Category = "Caching";
@@ -60,26 +56,26 @@ namespace ValidationEngine.Analyzers.Caching
 
             context.RegisterCompilationStartAction(compilationContext =>
             {
-                INamedTypeSymbol? distributedCacheSymbol = compilationContext.Compilation.GetTypeByMetadataName(
-                    CachingWellKnownTypes.IDistributedCacheMetadataName);
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
 
-                if (distributedCacheSymbol is null)
+                if (cacheManagerSymbol is null)
                 {
-                    // IDistributedCache is not referenced by this compilation; nothing to flag.
+                    // ICacheManager is not referenced by this compilation; nothing to flag.
                     return;
                 }
 
                 compilationContext.RegisterSyntaxNodeAction(
-                    syntaxContext => AnalyzeInvocation(syntaxContext, distributedCacheSymbol),
+                    syntaxContext => AnalyzeInvocation(syntaxContext, cacheManagerSymbol),
                     SyntaxKind.InvocationExpression);
             });
         }
 
-        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, INamedTypeSymbol distributedCacheSymbol)
+        private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context, INamedTypeSymbol cacheManagerSymbol)
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
-            if (!CachingWellKnownTypes.IsInvocationOfMember(invocation, SetAsyncMethodName))
+            if (!CachingWellKnownTypes.IsInvocationOfMember(invocation, CachingWellKnownTypes.SetAsyncMethodName))
             {
                 return;
             }
@@ -87,39 +83,24 @@ namespace ValidationEngine.Analyzers.Caching
             ISymbol? invokedSymbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol;
 
             if (invokedSymbol is not IMethodSymbol methodSymbol ||
-                !CachingWellKnownTypes.IsDistributedCacheMethod(methodSymbol, distributedCacheSymbol))
+                !CachingWellKnownTypes.IsCacheManagerMethod(methodSymbol, cacheManagerSymbol))
             {
                 return;
             }
 
-            if (invocation.ArgumentList.Arguments.Count < 2)
+            ArgumentSyntax? valueArgument = CachingWellKnownTypes.GetArgumentForParameter(invocation, methodSymbol, "value");
+
+            if (valueArgument is null)
             {
                 return;
             }
 
-            ExpressionSyntax valueArgument = invocation.ArgumentList.Arguments[1].Expression;
-            ExpressionSyntax dataExpression = UnwrapSerializedValueExpression(valueArgument);
-
-            string? sensitiveNameFragmentSource = GetSensitiveNameFragmentSource(dataExpression, context.SemanticModel, context.CancellationToken);
+            string? sensitiveNameFragmentSource = GetSensitiveNameFragmentSource(valueArgument.Expression, context.SemanticModel, context.CancellationToken);
 
             if (sensitiveNameFragmentSource is not null)
             {
-                context.ReportDiagnostic(Diagnostic.Create(Rule, valueArgument.GetLocation(), sensitiveNameFragmentSource));
+                context.ReportDiagnostic(Diagnostic.Create(Rule, valueArgument.Expression.GetLocation(), sensitiveNameFragmentSource));
             }
-        }
-
-        private static ExpressionSyntax UnwrapSerializedValueExpression(ExpressionSyntax expression)
-        {
-            if (expression is InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax memberAccess } invocation &&
-                string.Equals(memberAccess.Name.Identifier.ValueText, SerializeMethodName, StringComparison.Ordinal) &&
-                GetSimpleName(memberAccess.Expression) is { } receiverName &&
-                receiverName.EndsWith(CachingWellKnownTypes.CacheSerializerClassName, StringComparison.Ordinal) &&
-                invocation.ArgumentList.Arguments.Count > 0)
-            {
-                return invocation.ArgumentList.Arguments[0].Expression;
-            }
-
-            return expression;
         }
 
         private static string? GetSensitiveNameFragmentSource(

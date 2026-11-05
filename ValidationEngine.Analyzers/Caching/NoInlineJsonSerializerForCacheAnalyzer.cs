@@ -8,10 +8,8 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.8.2: a shared CacheSerializer helper must be used
-    /// rather than inline System.Text.Json.JsonSerializer calls scattered throughout the codebase.
-    /// Flags JsonSerializer.Serialize/Deserialize usage inside any class that injects/uses
-    /// IDistributedCache, unless the call site is inside the dedicated CacheSerializer class itself.
+    /// Enforces GlobalCachingStandards.md caching.8.2: ICacheManager owns serialization, so no
+    /// System.Text.Json.JsonSerializer call may appear inside any class that injects/uses ICacheManager.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class NoInlineJsonSerializerForCacheAnalyzer : DiagnosticAnalyzer
@@ -19,16 +17,15 @@ namespace ValidationEngine.Analyzers.Caching
         public const string DiagnosticId = "CACHE012";
 
         private static readonly LocalizableString Title =
-            "Cache serialization must go through the shared CacheSerializer helper";
+            "Cache-aware classes must not call JsonSerializer; ICacheManager owns serialization";
 
         private static readonly LocalizableString MessageFormat =
-            "'{0}' calls System.Text.Json.JsonSerializer directly instead of using the shared CacheSerializer helper; a shared cache serialization helper must be used rather than inline JsonSerializer calls, per GlobalCachingStandards.md caching.8.2";
+            "'{0}' uses ICacheManager and also calls System.Text.Json.JsonSerializer directly; ICacheManager owns serialization and deserialization, so consumers must pass and receive typed values, per GlobalCachingStandards.md caching.8.2";
 
         private static readonly LocalizableString Description =
-            "A shared cache serialization helper (CacheSerializer) must encapsulate serialization, " +
-            "deserialization, and byte[] conversion for cache entries. Inline JsonSerializer calls " +
-            "scattered across cache-aware services duplicate this logic and must be replaced with a " +
-            "call to the shared helper. See GlobalCachingStandards.md Section 8.2.";
+            "ICacheManager serializes and deserializes cache values itself. Consumers must not call " +
+            "JsonSerializer, convert to byte[], or wrap serialization in helpers; pass the typed value " +
+            "to SetAsync and read the typed value from TryGetAsync. See GlobalCachingStandards.md Section 8.2.";
 
         private const string Category = "Caching";
 
@@ -54,18 +51,18 @@ namespace ValidationEngine.Analyzers.Caching
             {
                 INamedTypeSymbol? jsonSerializerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
                     CachingWellKnownTypes.JsonSerializerMetadataName);
-                INamedTypeSymbol? distributedCacheSymbol = compilationContext.Compilation.GetTypeByMetadataName(
-                    CachingWellKnownTypes.IDistributedCacheMetadataName);
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
 
-                if (jsonSerializerSymbol is null || distributedCacheSymbol is null)
+                if (jsonSerializerSymbol is null || cacheManagerSymbol is null)
                 {
-                    // System.Text.Json or IDistributedCache is not referenced by this compilation;
+                    // System.Text.Json or ICacheManager is not referenced by this compilation;
                     // nothing to flag.
                     return;
                 }
 
                 compilationContext.RegisterSyntaxNodeAction(
-                    syntaxContext => AnalyzeInvocation(syntaxContext, jsonSerializerSymbol, distributedCacheSymbol),
+                    syntaxContext => AnalyzeInvocation(syntaxContext, jsonSerializerSymbol, cacheManagerSymbol),
                     SyntaxKind.InvocationExpression);
             });
         }
@@ -73,7 +70,7 @@ namespace ValidationEngine.Analyzers.Caching
         private static void AnalyzeInvocation(
             SyntaxNodeAnalysisContext context,
             INamedTypeSymbol jsonSerializerSymbol,
-            INamedTypeSymbol distributedCacheSymbol)
+            INamedTypeSymbol cacheManagerSymbol)
         {
             var invocation = (InvocationExpressionSyntax)context.Node;
 
@@ -92,20 +89,12 @@ namespace ValidationEngine.Analyzers.Caching
                 return;
             }
 
-            string containingTypeName = containingType.Identifier.ValueText;
-
-            if (containingTypeName.EndsWith(CachingWellKnownTypes.CacheSerializerClassName, StringComparison.Ordinal))
-            {
-                // The dedicated CacheSerializer helper is exactly where JsonSerializer calls belong.
-                return;
-            }
-
-            if (!CachingWellKnownTypes.TypeUsesDistributedCache(containingType, context.SemanticModel, distributedCacheSymbol))
+            if (!CachingWellKnownTypes.TypeUsesCacheManager(containingType, context.SemanticModel, cacheManagerSymbol))
             {
                 return;
             }
 
-            context.ReportDiagnostic(Diagnostic.Create(Rule, invocation.GetLocation(), containingTypeName));
+            context.ReportDiagnostic(Diagnostic.Create(Rule, invocation.GetLocation(), containingType.Identifier.ValueText));
         }
     }
 }

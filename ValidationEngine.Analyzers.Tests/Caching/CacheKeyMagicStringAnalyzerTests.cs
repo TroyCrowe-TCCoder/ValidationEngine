@@ -9,38 +9,30 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<CacheKeyMagicStringAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<CacheKeyMagicStringAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
-
-            return test;
+            return CacheManagerTestSupport.Create<CacheKeyMagicStringAnalyzer>(source);
         }
 
         [Fact]
-        public async Task WhenCacheKeyIsStringLiteralThenCache004IsReported()
+        public async Task WhenCategoryAndIdAreStringLiteralsThenCache004IsReportedForEach()
         {
             const string source = @"
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class ReferenceDataService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public ReferenceDataService(IDistributedCache cache)
+        public ReferenceDataService(ICacheManager cache)
         {
             _cache = cache;
         }
 
-        public Task<byte[]> LoadAsync()
+        public Task<(bool Found, string? Value)> LoadAsync()
         {
-            return _cache.GetAsync({|#0:""client-reference-data""|});
+            return _cache.TryGetAsync<string>({|#0:""ReferenceData""|}, {|#1:""client-reference-data""|});
         }
     }
 }
@@ -50,72 +42,124 @@ namespace TestApp
             test.ExpectedDiagnostics.Add(
                 new DiagnosticResult(CacheKeyMagicStringAnalyzer.Rule)
                     .WithLocation(0)
-                    .WithArguments("GetAsync"));
-
-            await test.RunAsync();
-        }
-
-        [Fact]
-        public async Task WhenCacheKeyIsInterpolatedStringThenCache004IsReported()
-        {
-            const string source = @"
-using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
-
-namespace TestApp
-{
-    public class ReferenceDataService
-    {
-        private readonly IDistributedCache _cache;
-
-        public ReferenceDataService(IDistributedCache cache)
-        {
-            _cache = cache;
-        }
-
-        public Task<byte[]> LoadAsync(string tenantId)
-        {
-            return _cache.GetAsync({|#0:$""{tenantId}:client-reference-data""|});
-        }
-    }
-}
-";
-
-            var test = CreateTest(source);
+                    .WithArguments("TryGetAsync", "category"));
             test.ExpectedDiagnostics.Add(
                 new DiagnosticResult(CacheKeyMagicStringAnalyzer.Rule)
-                    .WithLocation(0)
-                    .WithArguments("GetAsync"));
+                    .WithLocation(1)
+                    .WithArguments("TryGetAsync", "id"));
 
             await test.RunAsync();
         }
 
         [Fact]
-        public async Task WhenCacheKeyComesFromCacheKeysClassThenNoDiagnosticIsReported()
+        public async Task WhenIdIsInterpolatedStringThenCache004IsReported()
         {
             const string source = @"
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public static class CacheKeys
     {
+        public const string ReferenceData = ""ReferenceData"";
+    }
+
+    public class ReferenceDataService
+    {
+        private readonly ICacheManager _cache;
+
+        public ReferenceDataService(ICacheManager cache)
+        {
+            _cache = cache;
+        }
+
+        public Task RemoveAsync(string tenantId)
+        {
+            return _cache.RemoveAsync(CacheKeys.ReferenceData, {|#0:$""{tenantId}:client-reference-data""|});
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(CacheKeyMagicStringAnalyzer.Rule)
+                    .WithLocation(0)
+                    .WithArguments("RemoveAsync", "id"));
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenSetAsyncIdIsConcatenatedThenCache004IsReported()
+        {
+            const string source = @"
+using System;
+using System.Threading.Tasks;
+using RedisCacheManager.Caching;
+
+namespace TestApp
+{
+    public static class CacheKeys
+    {
+        public const string ReferenceData = ""ReferenceData"";
+    }
+
+    public class ReferenceDataService
+    {
+        private readonly ICacheManager _cache;
+
+        public ReferenceDataService(ICacheManager cache)
+        {
+            _cache = cache;
+        }
+
+        public Task SaveAsync(string tenantId, string value, TimeSpan ttl)
+        {
+            return _cache.SetAsync(CacheKeys.ReferenceData, {|#0:tenantId + "":data""|}, value, ttl);
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(CacheKeyMagicStringAnalyzer.Rule)
+                    .WithLocation(0)
+                    .WithArguments("SetAsync", "id"));
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenCategoryAndIdComeFromCacheKeysClassThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System.Threading.Tasks;
+using RedisCacheManager.Caching;
+
+namespace TestApp
+{
+    public static class CacheKeys
+    {
+        public const string ReferenceData = ""ReferenceData"";
+
         public static string ClientReferenceData(string tenantId) => $""{tenantId}:client-reference-data"";
     }
 
     public class ReferenceDataService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public ReferenceDataService(IDistributedCache cache)
+        public ReferenceDataService(ICacheManager cache)
         {
             _cache = cache;
         }
 
-        public Task<byte[]> LoadAsync(string tenantId)
+        public Task<(bool Found, string? Value)> LoadAsync(string tenantId)
         {
-            return _cache.GetAsync(CacheKeys.ClientReferenceData(tenantId));
+            return _cache.TryGetAsync<string>(CacheKeys.ReferenceData, CacheKeys.ClientReferenceData(tenantId));
         }
     }
 }

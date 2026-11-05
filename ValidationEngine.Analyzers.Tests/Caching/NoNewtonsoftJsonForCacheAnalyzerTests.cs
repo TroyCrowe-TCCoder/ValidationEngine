@@ -9,13 +9,7 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<NoNewtonsoftJsonForCacheAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<NoNewtonsoftJsonForCacheAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
+            var test = CacheManagerTestSupport.Create<NoNewtonsoftJsonForCacheAnalyzer>(source);
             test.TestState.AdditionalReferences.Add(typeof(Newtonsoft.Json.JsonConvert).Assembly);
 
             return test;
@@ -47,19 +41,19 @@ namespace TestApp
         }
 
         [Fact]
-        public async Task WhenServiceInjectingIDistributedCacheUsesJsonConvertThenCache008IsReported()
+        public async Task WhenServiceInjectingICacheManagerUsesJsonConvertThenCache008IsReported()
         {
             const string source = @"
-using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public UserProfileService(IDistributedCache cache)
+        public UserProfileService(ICacheManager cache)
         {
             _cache = cache;
         }

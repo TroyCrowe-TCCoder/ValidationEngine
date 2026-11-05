@@ -9,15 +9,7 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<CacheInvalidationOnWriteAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<CacheInvalidationOnWriteAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
-
-            return test;
+            return CacheManagerTestSupport.Create<CacheInvalidationOnWriteAnalyzer>(source);
         }
 
         [Fact]
@@ -26,22 +18,22 @@ namespace ValidationEngine.Analyzers.Caching.Tests
             const string source = @"
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class ClientConfigService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public ClientConfigService(IDistributedCache cache)
+        public ClientConfigService(ICacheManager cache)
         {
             _cache = cache;
         }
 
         public async Task {|#0:UpdateClientConfigAsync|}(int tenantId, int clientId, object config, CancellationToken cancellationToken)
         {
-            await System.Threading.Tasks.Task.CompletedTask;
+            await Task.CompletedTask;
         }
     }
 }
@@ -62,22 +54,22 @@ namespace TestApp
             const string source = @"
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class ClientConfigService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public ClientConfigService(IDistributedCache cache)
+        public ClientConfigService(ICacheManager cache)
         {
             _cache = cache;
         }
 
         public async Task {|#0:UpdateClientConfigAsync|}(int tenantId, int clientId, object config, CancellationToken cancellationToken)
         {
-            await _cache.RemoveAsync(""client-config-key"");
+            await _cache.RemoveAsync(""ClientConfig"", ""key"");
         }
     }
 }
@@ -98,22 +90,22 @@ namespace TestApp
             const string source = @"
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class ClientConfigService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public ClientConfigService(IDistributedCache cache)
+        public ClientConfigService(ICacheManager cache)
         {
             _cache = cache;
         }
 
         public async Task UpdateClientConfigAsync(int tenantId, int clientId, object config, CancellationToken cancellationToken)
         {
-            await _cache.RemoveAsync(""client-config-key"", cancellationToken);
+            await _cache.RemoveAsync(""ClientConfig"", ""key"", cancellationToken);
         }
     }
 }
@@ -137,7 +129,7 @@ namespace TestApp
     {
         public async Task UpdateClientConfigAsync(int tenantId, int clientId, object config, CancellationToken cancellationToken)
         {
-            await System.Threading.Tasks.Task.CompletedTask;
+            await Task.CompletedTask;
         }
     }
 }
@@ -154,22 +146,23 @@ namespace TestApp
             const string source = @"
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class ClientConfigService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public ClientConfigService(IDistributedCache cache)
+        public ClientConfigService(ICacheManager cache)
         {
             _cache = cache;
         }
 
-        public async Task<byte[]> GetClientConfigAsync(int tenantId, int clientId, CancellationToken cancellationToken)
+        public async Task<string?> GetClientConfigAsync(int tenantId, int clientId, CancellationToken cancellationToken)
         {
-            return await _cache.GetAsync(""client-config-key"", cancellationToken);
+            var (_, value) = await _cache.TryGetAsync<string>(""ClientConfig"", ""key"", cancellationToken);
+            return value;
         }
     }
 }
