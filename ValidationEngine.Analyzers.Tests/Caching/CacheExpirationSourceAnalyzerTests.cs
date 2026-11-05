@@ -9,13 +9,7 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<CacheExpirationSourceAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<CacheExpirationSourceAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
+            var test = CacheManagerTestSupport.Create<CacheExpirationSourceAnalyzer>(source);
             test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Options.IOptions<>).Assembly);
 
             return test;
@@ -56,20 +50,27 @@ namespace TestApp
         }
 
         [Fact]
-        public async Task WhenSetAbsoluteExpirationIsPassedAHardcodedTimeSpanThenCache006IsReported()
+        public async Task WhenSetAsyncIsPassedAHardcodedTimeSpanThenCache006IsReported()
         {
             const string source = @"
 using System;
-using Microsoft.Extensions.Caching.Distributed;
+using System.Threading.Tasks;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        public void ConfigureExpiration()
+        private readonly ICacheManager _cache;
+
+        public UserProfileService(ICacheManager cache)
         {
-            var options = new DistributedCacheEntryOptions()
-                .SetAbsoluteExpiration({|#0:TimeSpan.FromMinutes(30)|});
+            _cache = cache;
+        }
+
+        public Task SaveAsync(string category, string id, string value)
+        {
+            return _cache.SetAsync(category, id, value, {|#0:TimeSpan.FromMinutes(30)|});
         }
     }
 }
@@ -79,18 +80,54 @@ namespace TestApp
             test.ExpectedDiagnostics.Add(
                 new DiagnosticResult(CacheExpirationSourceAnalyzer.Rule)
                     .WithLocation(0)
-                    .WithArguments("SetAbsoluteExpiration is passed a hardcoded 'TimeSpan.FromMinutes(30)' value instead of an expiration sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.3"));
+                    .WithArguments("SetAsync is passed a hardcoded 'TimeSpan.FromMinutes(30)' ttl instead of one sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.3"));
 
             await test.RunAsync();
         }
 
         [Fact]
-        public async Task WhenExpirationComesFromIOptionsMonitorCurrentValueThenNoDiagnosticIsReported()
+        public async Task WhenSetAsyncOmitsTtlThenCache006IsReported()
+        {
+            const string source = @"
+using System.Threading.Tasks;
+using RedisCacheManager.Caching;
+
+namespace TestApp
+{
+    public class UserProfileService
+    {
+        private readonly ICacheManager _cache;
+
+        public UserProfileService(ICacheManager cache)
+        {
+            _cache = cache;
+        }
+
+        public Task SaveAsync(string category, string id, string value)
+        {
+            return {|#0:_cache.SetAsync(category, id, value)|};
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(CacheExpirationSourceAnalyzer.Rule)
+                    .WithLocation(0)
+                    .WithArguments("SetAsync does not pass a ttl and would rely on the package DefaultTtl; pass a ttl sourced from IOptionsMonitor<CacheOptions>.CurrentValue, per GlobalCachingStandards.md caching.6.1"));
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenTtlComesFromIOptionsMonitorCurrentValueThenNoDiagnosticIsReported()
         {
             const string source = @"
 using System;
-using Microsoft.Extensions.Caching.Distributed;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
@@ -101,18 +138,18 @@ namespace TestApp
 
     public class UserProfileService
     {
+        private readonly ICacheManager _cache;
         private readonly IOptionsMonitor<CacheOptions> _cacheOptions;
 
-        public UserProfileService(IOptionsMonitor<CacheOptions> cacheOptions)
+        public UserProfileService(ICacheManager cache, IOptionsMonitor<CacheOptions> cacheOptions)
         {
+            _cache = cache;
             _cacheOptions = cacheOptions;
         }
 
-        public void ConfigureExpiration()
+        public Task SaveAsync(string category, string id, string value)
         {
-            var options = new DistributedCacheEntryOptions()
-                .SetAbsoluteExpiration(
-                    TimeSpan.FromMinutes(_cacheOptions.CurrentValue.UserProfileExpirationMinutes));
+            return _cache.SetAsync(category, id, value, TimeSpan.FromMinutes(_cacheOptions.CurrentValue.UserProfileExpirationMinutes));
         }
     }
 }

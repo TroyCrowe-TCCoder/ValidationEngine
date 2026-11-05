@@ -8,11 +8,10 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.9.2: cache hits, misses, and errors must be
-    /// logged for observability. As a static heuristic, this analyzer flags a method that calls
-    /// IDistributedCache.GetAsync/SetAsync/RemoveAsync but never calls ILogger&lt;T&gt; anywhere in
-    /// that method body, meaning no hit/miss/error telemetry is ever recorded for that cache
-    /// operation.
+    /// Enforces GlobalCachingStandards.md caching.9.2: RedisCacheManager publishes the cache
+    /// telemetry, so applications must not duplicate it with per-call hit/miss logging. As a static
+    /// heuristic, this analyzer flags an ILogger call whose message text mentions both "cache" and
+    /// "hit" or "miss" inside a method that calls ICacheManager.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class CacheObservabilityAnalyzer : DiagnosticAnalyzer
@@ -20,13 +19,15 @@ namespace ValidationEngine.Analyzers.Caching
         public const string DiagnosticId = "CACHE015";
 
         private static readonly LocalizableString Title =
-            "Cache operations must log hits, misses, and errors for observability";
+            "Cache hits and misses must not be logged; RedisCacheManager publishes the telemetry";
 
         private static readonly LocalizableString MessageFormat =
-            "'{0}' calls IDistributedCache.{1} but never calls ILogger<T> anywhere in the method; cache hits, misses, and errors must be logged using structured named properties, per GlobalCachingStandards.md caching.9.2";
+            "'{0}' logs a cache hit or miss around an ICacheManager call; RedisCacheManager already publishes redis_cache.hits and redis_cache.misses, so per-call hit/miss logging must be removed, per GlobalCachingStandards.md caching.9.2";
 
         private static readonly LocalizableString Description =
-            "Cache hits, misses, and errors must be logged (Debug for hits/misses, Warning for read/write/deserialization errors) using structured logging with named properties. Consistent logging enables performance diagnostics, cache effectiveness monitoring, and issue investigation. See GlobalCachingStandards.md Section 9.2.";
+            "RedisCacheManager publishes cache hit, miss, set, removal, and error telemetry as metrics and " +
+            "Warning logs. Applications must not duplicate it with per-call hit and miss logging. " +
+            "See GlobalCachingStandards.md Section 9.2.";
 
         private const string Category = "Caching";
 
@@ -50,30 +51,29 @@ namespace ValidationEngine.Analyzers.Caching
 
             context.RegisterCompilationStartAction(compilationContext =>
             {
-                INamedTypeSymbol? distributedCacheSymbol = compilationContext.Compilation.GetTypeByMetadataName(
-                    CachingWellKnownTypes.IDistributedCacheMetadataName);
+                INamedTypeSymbol? cacheManagerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
+                    CachingWellKnownTypes.ICacheManagerMetadataName);
                 INamedTypeSymbol? loggerGenericSymbol = compilationContext.Compilation.GetTypeByMetadataName(
                     CachingWellKnownTypes.LoggerInterfaceMetadataName);
                 INamedTypeSymbol? loggerSymbol = compilationContext.Compilation.GetTypeByMetadataName(
                     CachingWellKnownTypes.LoggerNonGenericInterfaceMetadataName);
 
-                if (distributedCacheSymbol is null || (loggerGenericSymbol is null && loggerSymbol is null))
+                if (cacheManagerSymbol is null || (loggerGenericSymbol is null && loggerSymbol is null))
                 {
-                    // Either IDistributedCache or Microsoft.Extensions.Logging.Abstractions is not
-                    // referenced by this compilation; there is no way for this method to comply,
-                    // so skip to avoid false positives.
+                    // Either ICacheManager or Microsoft.Extensions.Logging.Abstractions is not
+                    // referenced by this compilation; nothing to flag.
                     return;
                 }
 
                 compilationContext.RegisterSyntaxNodeAction(
-                    syntaxContext => AnalyzeMethod(syntaxContext, distributedCacheSymbol, loggerGenericSymbol, loggerSymbol),
+                    syntaxContext => AnalyzeMethod(syntaxContext, cacheManagerSymbol, loggerGenericSymbol, loggerSymbol),
                     SyntaxKind.MethodDeclaration);
             });
         }
 
         private static void AnalyzeMethod(
             SyntaxNodeAnalysisContext context,
-            INamedTypeSymbol distributedCacheSymbol,
+            INamedTypeSymbol cacheManagerSymbol,
             INamedTypeSymbol? loggerGenericSymbol,
             INamedTypeSymbol? loggerSymbol)
         {
@@ -90,7 +90,7 @@ namespace ValidationEngine.Analyzers.Caching
 
             InvocationExpressionSyntax? cacheCall = invocations.FirstOrDefault(invocation =>
             {
-                if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
+                if (invocation.Expression is not MemberAccessExpressionSyntax)
                 {
                     return false;
                 }
@@ -98,7 +98,7 @@ namespace ValidationEngine.Analyzers.Caching
                 ISymbol? symbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol;
 
                 return symbol is IMethodSymbol methodSymbol &&
-                       CachingWellKnownTypes.IsDistributedCacheMethod(methodSymbol, distributedCacheSymbol);
+                       CachingWellKnownTypes.IsCacheManagerMethod(methodSymbol, cacheManagerSymbol);
             });
 
             if (cacheCall is null)
@@ -106,35 +106,52 @@ namespace ValidationEngine.Analyzers.Caching
                 return;
             }
 
-            bool hasLoggerCall = invocations.Any(invocation =>
-            {
-                if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess)
-                {
-                    return false;
-                }
+            string methodName = method.Identifier.ValueText;
 
-                if (!CachingWellKnownTypes.IsLoggerMethodName(memberAccess.Name.Identifier.ValueText))
+            foreach (InvocationExpressionSyntax invocation in invocations)
+            {
+                if (invocation.Expression is not MemberAccessExpressionSyntax memberAccess ||
+                    !CachingWellKnownTypes.IsLoggerMethodName(memberAccess.Name.Identifier.ValueText))
                 {
-                    return false;
+                    continue;
                 }
 
                 ISymbol? symbol = context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol;
 
-                return symbol is IMethodSymbol methodSymbol &&
-                       methodSymbol.ReceiverType is not null &&
-                       CachingWellKnownTypes.IsLoggerReceiverType(methodSymbol.ReceiverType, loggerGenericSymbol, loggerSymbol);
-            });
+                if (symbol is not IMethodSymbol methodSymbol ||
+                    methodSymbol.ReceiverType is null ||
+                    !CachingWellKnownTypes.IsLoggerReceiverType(methodSymbol.ReceiverType, loggerGenericSymbol, loggerSymbol))
+                {
+                    continue;
+                }
 
-            if (hasLoggerCall)
+                if (MessageMentionsCacheHitOrMiss(invocation))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(Rule, invocation.GetLocation(), methodName));
+                }
+            }
+        }
+
+        private static bool MessageMentionsCacheHitOrMiss(InvocationExpressionSyntax logCall)
+        {
+            foreach (ArgumentSyntax argument in logCall.ArgumentList.Arguments)
             {
-                return;
+                if (argument.Expression is not (LiteralExpressionSyntax or InterpolatedStringExpressionSyntax))
+                {
+                    continue;
+                }
+
+                string text = argument.Expression.ToString();
+
+                if (text.IndexOf("cache", System.StringComparison.OrdinalIgnoreCase) >= 0 &&
+                    (text.IndexOf("hit", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     text.IndexOf("miss", System.StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    return true;
+                }
             }
 
-            var memberAccessSyntax = (MemberAccessExpressionSyntax)cacheCall.Expression;
-            string methodName = method.Identifier.ValueText;
-            string cacheMethodName = memberAccessSyntax.Name.Identifier.ValueText;
-
-            context.ReportDiagnostic(Diagnostic.Create(Rule, memberAccessSyntax.Name.GetLocation(), methodName, cacheMethodName));
+            return false;
         }
     }
 }

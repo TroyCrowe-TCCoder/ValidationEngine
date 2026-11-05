@@ -9,39 +9,43 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<CacheObservabilityAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<CacheObservabilityAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
+            var test = CacheManagerTestSupport.Create<CacheObservabilityAnalyzer>(source);
             test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Logging.ILogger<>).Assembly);
 
             return test;
         }
 
         [Fact]
-        public async Task WhenCacheCallHasNoLoggingThenCache015IsReported()
+        public async Task WhenCacheHitIsLoggedAroundICacheManagerCallThenCache015IsReported()
         {
             const string source = @"
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
+        private readonly ILogger<UserProfileService> _logger;
 
-        public UserProfileService(IDistributedCache cache)
+        public UserProfileService(ICacheManager cache, ILogger<UserProfileService> logger)
         {
             _cache = cache;
+            _logger = logger;
         }
 
-        public async Task<byte[]?> GetUserProfileAsync(string key)
+        public async Task<string?> GetUserProfileAsync(string category, string id)
         {
-            return await _cache.{|#0:GetAsync|}(key);
+            var (found, value) = await _cache.TryGetAsync<string>(category, id);
+
+            if (found)
+            {
+                {|#0:_logger.LogDebug(""Cache hit for {Id}"", id)|};
+            }
+
+            return value;
         }
     }
 }
@@ -51,46 +55,84 @@ namespace TestApp
             test.ExpectedDiagnostics.Add(
                 new DiagnosticResult(CacheObservabilityAnalyzer.Rule)
                     .WithLocation(0)
-                    .WithArguments("GetUserProfileAsync", "GetAsync"));
+                    .WithArguments("GetUserProfileAsync"));
 
             await test.RunAsync();
         }
 
         [Fact]
-        public async Task WhenCacheCallIsAccompaniedByLoggingThenNoDiagnosticIsReported()
+        public async Task WhenCacheMissIsLoggedAroundICacheManagerCallThenCache015IsReported()
         {
             const string source = @"
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
         private readonly ILogger<UserProfileService> _logger;
 
-        public UserProfileService(IDistributedCache cache, ILogger<UserProfileService> logger)
+        public UserProfileService(ICacheManager cache, ILogger<UserProfileService> logger)
         {
             _cache = cache;
             _logger = logger;
         }
 
-        public async Task<byte[]?> GetUserProfileAsync(string key)
+        public async Task<string?> GetUserProfileAsync(string category, string id)
         {
-            var result = await _cache.GetAsync(key);
+            var (found, value) = await _cache.TryGetAsync<string>(category, id);
 
-            if (result is null)
+            if (!found)
             {
-                _logger.LogDebug(""Cache miss for {Key}"", key);
-            }
-            else
-            {
-                _logger.LogDebug(""Cache hit for {Key}"", key);
+                {|#0:_logger.LogInformation($""cache miss for {id}"")|};
             }
 
-            return result;
+            return value;
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(CacheObservabilityAnalyzer.Rule)
+                    .WithLocation(0)
+                    .WithArguments("GetUserProfileAsync"));
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenLoggingIsUnrelatedToHitOrMissThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using RedisCacheManager.Caching;
+
+namespace TestApp
+{
+    public class UserProfileService
+    {
+        private readonly ICacheManager _cache;
+        private readonly ILogger<UserProfileService> _logger;
+
+        public UserProfileService(ICacheManager cache, ILogger<UserProfileService> logger)
+        {
+            _cache = cache;
+            _logger = logger;
+        }
+
+        public async Task<string?> GetUserProfileAsync(string category, string id)
+        {
+            _logger.LogInformation(""Loading profile {Id}"", id);
+
+            var (_, value) = await _cache.TryGetAsync<string>(category, id);
+
+            return value;
         }
     }
 }
@@ -102,18 +144,25 @@ namespace TestApp
         }
 
         [Fact]
-        public async Task WhenMethodDoesNotCallDistributedCacheThenNoDiagnosticIsReported()
+        public async Task WhenMethodDoesNotCallICacheManagerThenNoDiagnosticIsReported()
         {
             const string source = @"
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        public Task DoWorkAsync()
+        private readonly ILogger<UserProfileService> _logger;
+
+        public UserProfileService(ILogger<UserProfileService> logger)
         {
-            return Task.CompletedTask;
+            _logger = logger;
+        }
+
+        public void Report()
+        {
+            _logger.LogDebug(""Cache hit statistics were requested"");
         }
     }
 }

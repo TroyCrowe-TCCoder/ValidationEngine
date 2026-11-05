@@ -14,9 +14,15 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace TestApp
 {
+    public static class CacheManagerRegistrationExtensions
+    {
+        public static IServiceCollection AddRedisCacheManager(this IServiceCollection services, IConfiguration configuration)
+            => services;
+    }
+
     public class ServiceCollectionExtensionsHost
     {
-        public void ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration)
+        public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
         {
 ";
 
@@ -28,15 +34,8 @@ namespace TestApp
 
         private static CSharpAnalyzerTest<RedisRegistrationOptionsAnalyzer, DefaultVerifier> CreateTest(string body)
         {
-            var source = Preamble + body + Postamble;
+            var test = CacheManagerTestSupport.Create<RedisRegistrationOptionsAnalyzer>(Preamble + body + Postamble, referenceCachingAbstractions: true);
 
-            var test = new CSharpAnalyzerTest<RedisRegistrationOptionsAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
             test.TestState.AdditionalReferences.Add(typeof(StackExchange.Redis.ConfigurationOptions).Assembly);
             test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.DependencyInjection.IServiceCollection).Assembly);
             test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Configuration.IConfiguration).Assembly);
@@ -46,30 +45,7 @@ namespace TestApp
         }
 
         [Fact]
-        public async Task WhenRegistrationUsesHardcodedConnectionStringThenCache002IsReported()
-        {
-            const string body = @"
-            services.AddStackExchangeRedisCache(options =>
-            {
-                options.Configuration = {|#0:""localhost:6379""|};
-                options.ConfigurationOptions = new StackExchange.Redis.ConfigurationOptions
-                {
-                    AbortOnConnectFail = false
-                };
-            });
-";
-
-            var test = CreateTest(body);
-            test.ExpectedDiagnostics.Add(
-                new DiagnosticResult(RedisRegistrationOptionsAnalyzer.Rule)
-                    .WithLocation(0)
-                    .WithArguments("AddStackExchangeRedisCache uses a hardcoded connection string; source it from configuration (e.g. Key Vault-backed), per GlobalCachingStandards.md caching.3.1"));
-
-            await test.RunAsync();
-        }
-
-        [Fact]
-        public async Task WhenRegistrationDoesNotSetAbortOnConnectFailThenCache002IsReported()
+        public async Task WhenAddStackExchangeRedisCacheIsCalledWithOptionsThenCache002IsReported()
         {
             const string body = @"
             services.{|#0:AddStackExchangeRedisCache|}(options =>
@@ -81,17 +57,16 @@ namespace TestApp
             var test = CreateTest(body);
             test.ExpectedDiagnostics.Add(
                 new DiagnosticResult(RedisRegistrationOptionsAnalyzer.Rule)
-                    .WithLocation(0)
-                    .WithArguments("AddStackExchangeRedisCache registration does not set AbortOnConnectFail; the app must not crash on startup if Redis is temporarily unavailable, per GlobalCachingStandards.md caching.3.1"));
+                    .WithLocation(0));
 
             await test.RunAsync();
         }
 
         [Fact]
-        public async Task WhenRegistrationIsFullyCompliantThenNoDiagnosticIsReported()
+        public async Task WhenAddStackExchangeRedisCacheIsFullyConfiguredThenCache002IsStillReported()
         {
             const string body = @"
-            services.AddStackExchangeRedisCache(options =>
+            services.{|#0:AddStackExchangeRedisCache|}(options =>
             {
                 options.Configuration = configuration.GetConnectionString(""Redis"");
                 options.InstanceName = configuration[""Cache:InstanceName""];
@@ -101,6 +76,21 @@ namespace TestApp
                     AbortOnConnectFail = false
                 };
             });
+";
+
+            var test = CreateTest(body);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(RedisRegistrationOptionsAnalyzer.Rule)
+                    .WithLocation(0));
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenAddRedisCacheManagerIsUsedThenNoDiagnosticIsReported()
+        {
+            const string body = @"
+            services.AddRedisCacheManager(configuration);
 ";
 
             var test = CreateTest(body);

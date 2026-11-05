@@ -9,76 +9,34 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<CacheAsideResilienceAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<CacheAsideResilienceAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
-
-            return test;
+            return CacheManagerTestSupport.Create<CacheAsideResilienceAnalyzer>(source);
         }
 
         [Fact]
-        public async Task WhenGetAsyncCallHasNoSurroundingTryCatchThenCache014IsReported()
-        {
-            const string source = @"
-using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
-
-namespace TestApp
-{
-    public class UserProfileService
-    {
-        private readonly IDistributedCache _cache;
-
-        public UserProfileService(IDistributedCache cache)
-        {
-            _cache = cache;
-        }
-
-        public async Task<byte[]?> GetUserProfileAsync(string key)
-        {
-            return await {|#0:_cache.GetAsync(key)|};
-        }
-    }
-}
-";
-
-            var test = CreateTest(source);
-            test.ExpectedDiagnostics.Add(
-                new DiagnosticResult(CacheAsideResilienceAnalyzer.Rule)
-                    .WithLocation(0)
-                    .WithArguments("GetUserProfileAsync", "GetAsync"));
-
-            await test.RunAsync();
-        }
-
-        [Fact]
-        public async Task WhenGetAsyncCallIsInTryCatchThatFallsThroughThenNoDiagnosticIsReported()
+        public async Task WhenTryGetAsyncIsWrappedInTryCatchThenCache014IsReported()
         {
             const string source = @"
 using System;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public UserProfileService(IDistributedCache cache)
+        public UserProfileService(ICacheManager cache)
         {
             _cache = cache;
         }
 
-        public async Task<byte[]?> GetUserProfileAsync(string key)
+        public async Task<string?> GetUserProfileAsync(string category, string id)
         {
             try
             {
-                return await _cache.GetAsync(key);
+                var (found, value) = await {|#0:_cache.TryGetAsync<string>(category, id)|};
+                return found ? value : null;
             }
             catch (Exception)
             {
@@ -90,38 +48,41 @@ namespace TestApp
 ";
 
             var test = CreateTest(source);
+            test.ExpectedDiagnostics.Add(
+                new DiagnosticResult(CacheAsideResilienceAnalyzer.Rule)
+                    .WithLocation(0)
+                    .WithArguments("GetUserProfileAsync", "TryGetAsync"));
 
             await test.RunAsync();
         }
 
         [Fact]
-        public async Task WhenCatchClauseRethrowsThenCache014IsReported()
+        public async Task WhenSetAsyncIsWrappedInTryCatchThenCache014IsReported()
         {
             const string source = @"
 using System;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public UserProfileService(IDistributedCache cache)
+        public UserProfileService(ICacheManager cache)
         {
             _cache = cache;
         }
 
-        public async Task<byte[]?> GetUserProfileAsync(string key)
+        public async Task SaveAsync(string category, string id, string value, TimeSpan ttl)
         {
             try
             {
-                return await {|#0:_cache.GetAsync(key)|};
+                await {|#0:_cache.SetAsync(category, id, value, ttl)|};
             }
             catch (Exception)
             {
-                throw;
             }
         }
     }
@@ -132,39 +93,100 @@ namespace TestApp
             test.ExpectedDiagnostics.Add(
                 new DiagnosticResult(CacheAsideResilienceAnalyzer.Rule)
                     .WithLocation(0)
-                    .WithArguments("GetUserProfileAsync", "GetAsync"));
+                    .WithArguments("SaveAsync", "SetAsync"));
 
             await test.RunAsync();
         }
 
         [Fact]
-        public async Task WhenSetAsyncCallIsInTryCatchThatFallsThroughThenNoDiagnosticIsReported()
+        public async Task WhenCacheCallIsNotWrappedInTryCatchThenNoDiagnosticIsReported()
         {
             const string source = @"
-using System;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public UserProfileService(IDistributedCache cache)
+        public UserProfileService(ICacheManager cache)
         {
             _cache = cache;
         }
 
-        public async Task SetUserProfileAsync(string key, byte[] data)
+        public async Task<string?> GetUserProfileAsync(string category, string id)
+        {
+            var (found, value) = await _cache.TryGetAsync<string>(category, id);
+            return found ? value : null;
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenTryHasOnlyFinallyThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System.Threading.Tasks;
+using RedisCacheManager.Caching;
+
+namespace TestApp
+{
+    public class UserProfileService
+    {
+        private readonly ICacheManager _cache;
+
+        public UserProfileService(ICacheManager cache)
+        {
+            _cache = cache;
+        }
+
+        public async Task RemoveAsync(string category, string id)
         {
             try
             {
-                await _cache.SetAsync(key, data);
+                await _cache.RemoveAsync(category, id);
             }
-            catch (Exception)
+            finally
             {
-                // logged elsewhere; fall through
+            }
+        }
+    }
+}
+";
+
+            var test = CreateTest(source);
+
+            await test.RunAsync();
+        }
+
+        [Fact]
+        public async Task WhenCatchWrapsANonCacheCallThenNoDiagnosticIsReported()
+        {
+            const string source = @"
+using System;
+using System.Threading.Tasks;
+
+namespace TestApp
+{
+    public class UserProfileService
+    {
+        public Task<int> ParseAsync(string text)
+        {
+            try
+            {
+                return Task.FromResult(int.Parse(text));
+            }
+            catch (FormatException)
+            {
+                return Task.FromResult(0);
             }
         }
     }

@@ -8,9 +8,10 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.4.1/5.1: every key-building method in the
+    /// Enforces GlobalCachingStandards.md caching.4/5.1: every key-building method in the
     /// dedicated "CacheKeys" static class must accept a "tenantId" parameter and use it as the
-    /// first segment of the returned key, without exception.
+    /// first segment of the returned key. A method documented with a comment stating that the id is
+    /// tenant-independent is exempt (caching.5.3).
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class CacheKeyTenantIdSegmentAnalyzer : DiagnosticAnalyzer
@@ -25,8 +26,9 @@ namespace ValidationEngine.Analyzers.Caching
 
         private static readonly LocalizableString Description =
             "Every method in the CacheKeys class must accept a 'tenantId' parameter and use it as the " +
-            "first segment of the returned cache key, even in applications that are not yet " +
-            "multi-tenant. See GlobalCachingStandards.md Sections 4.1 and 5.1.";
+            "first segment of the returned cache key. A key that is deliberately tenant-independent must " +
+            "carry a comment containing 'tenant-independent' that states why. See GlobalCachingStandards.md " +
+            "Sections 4 and 5.";
 
         private const string Category = "Caching";
 
@@ -66,6 +68,11 @@ namespace ValidationEngine.Analyzers.Caching
                 return;
             }
 
+            if (IsDocumentedTenantIndependent(method))
+            {
+                return;
+            }
+
             ExpressionSyntax? keyExpression = GetReturnedExpression(method);
 
             if (keyExpression is null || !IsComposedKeyExpression(keyExpression))
@@ -91,6 +98,19 @@ namespace ValidationEngine.Analyzers.Caching
             {
                 context.ReportDiagnostic(Diagnostic.Create(Rule, keyExpression.GetLocation(), method.Identifier.ValueText));
             }
+        }
+
+        private static bool IsDocumentedTenantIndependent(MethodDeclarationSyntax method)
+        {
+            foreach (SyntaxTrivia trivia in method.GetLeadingTrivia())
+            {
+                if (trivia.ToString().IndexOf("tenant-independent", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static ExpressionSyntax? GetReturnedExpression(MethodDeclarationSyntax method)

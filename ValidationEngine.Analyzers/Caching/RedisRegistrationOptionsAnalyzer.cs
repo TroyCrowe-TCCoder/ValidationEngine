@@ -8,9 +8,10 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
-    /// Enforces GlobalCachingStandards.md caching.3.1: Redis registration via
-    /// AddStackExchangeRedisCache must not use a hardcoded connection string and must configure
-    /// AbortOnConnectFail (so the app does not crash on startup if Redis is briefly unavailable).
+    /// Enforces GlobalCachingStandards.md caching.3: the cache must be registered with
+    /// <c>AddRedisCacheManager(builder.Configuration)</c>. Registering Redis through
+    /// <c>AddStackExchangeRedisCache</c> is not permitted; the TCCoder.RedisCacheManager package owns the
+    /// connection, retry and options.
     /// </summary>
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     public sealed class RedisRegistrationOptionsAnalyzer : DiagnosticAnalyzer
@@ -18,18 +19,17 @@ namespace ValidationEngine.Analyzers.Caching
         public const string DiagnosticId = "CACHE002";
 
         private const string RegistrationMethodName = "AddStackExchangeRedisCache";
-        private const string ConfigurationPropertyName = "Configuration";
-        private const string AbortOnConnectFailPropertyName = "AbortOnConnectFail";
 
         private static readonly LocalizableString Title =
-            "Redis registration is missing required options";
+            "Redis must be registered with AddRedisCacheManager";
 
-        private static readonly LocalizableString MessageFormat = "{0}";
+        private static readonly LocalizableString MessageFormat =
+            "AddStackExchangeRedisCache is not permitted; register the cache with AddRedisCacheManager(builder.Configuration), per GlobalCachingStandards.md caching.3";
 
         private static readonly LocalizableString Description =
-            "AddStackExchangeRedisCache registration must source its connection string from configuration " +
-            "(never a hardcoded literal) and must explicitly set AbortOnConnectFail so startup does not crash " +
-            "when Redis is briefly unavailable. See GlobalCachingStandards.md Section 3.1.";
+            "The cache must be registered with AddRedisCacheManager(builder.Configuration) from the " +
+            "TCCoder.RedisCacheManager package. Registering Redis through AddStackExchangeRedisCache is not " +
+            "permitted. See GlobalCachingStandards.md Section 3.";
 
         private const string Category = "Caching";
 
@@ -64,55 +64,7 @@ namespace ValidationEngine.Analyzers.Caching
                 return;
             }
 
-            LambdaExpressionSyntax? lambda = invocation.ArgumentList.Arguments
-                .Select(a => a.Expression)
-                .OfType<LambdaExpressionSyntax>()
-                .FirstOrDefault();
-
-            if (lambda is null)
-            {
-                // No options-configuration lambda at all; nothing further to inspect syntactically.
-                return;
-            }
-
-            var assignments = lambda.DescendantNodes().OfType<AssignmentExpressionSyntax>().ToList();
-
-            bool hasHardcodedConnectionString = assignments.Any(a =>
-                GetAssignedPropertyName(a.Left) == ConfigurationPropertyName &&
-                a.Right is LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression });
-
-            if (hasHardcodedConnectionString)
-            {
-                AssignmentExpressionSyntax offending = assignments.First(a =>
-                    GetAssignedPropertyName(a.Left) == ConfigurationPropertyName &&
-                    a.Right is LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression });
-
-                context.ReportDiagnostic(Diagnostic.Create(
-                    Rule,
-                    offending.Right.GetLocation(),
-                    "AddStackExchangeRedisCache uses a hardcoded connection string; source it from configuration (e.g. Key Vault-backed), per GlobalCachingStandards.md caching.3.1"));
-            }
-
-            bool hasAbortOnConnectFail = assignments.Any(a =>
-                GetAssignedPropertyName(a.Left) == AbortOnConnectFailPropertyName);
-
-            if (!hasAbortOnConnectFail)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    Rule,
-                    memberAccess.Name.GetLocation(),
-                    "AddStackExchangeRedisCache registration does not set AbortOnConnectFail; the app must not crash on startup if Redis is temporarily unavailable, per GlobalCachingStandards.md caching.3.1"));
-            }
-        }
-
-        private static string? GetAssignedPropertyName(ExpressionSyntax left)
-        {
-            return left switch
-            {
-                IdentifierNameSyntax identifier => identifier.Identifier.ValueText,
-                MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText,
-                _ => null,
-            };
+            context.ReportDiagnostic(Diagnostic.Create(Rule, memberAccess.Name.GetLocation()));
         }
     }
 }

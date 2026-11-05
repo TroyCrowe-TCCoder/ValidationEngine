@@ -9,31 +9,23 @@ namespace ValidationEngine.Analyzers.Caching.Tests
     {
         private static CSharpAnalyzerTest<NoInlineJsonSerializerForCacheAnalyzer, DefaultVerifier> CreateTest(string source)
         {
-            var test = new CSharpAnalyzerTest<NoInlineJsonSerializerForCacheAnalyzer, DefaultVerifier>
-            {
-                TestCode = source,
-                ReferenceAssemblies = ReferenceAssemblies.Net.Net90,
-            };
-
-            test.TestState.AdditionalReferences.Add(typeof(Microsoft.Extensions.Caching.Distributed.IDistributedCache).Assembly);
-
-            return test;
+            return CacheManagerTestSupport.Create<NoInlineJsonSerializerForCacheAnalyzer>(source);
         }
 
         [Fact]
-        public async Task WhenServiceInjectingIDistributedCacheCallsJsonSerializerDirectlyThenCache012IsReported()
+        public async Task WhenServiceInjectingICacheManagerCallsJsonSerializerDirectlyThenCache012IsReported()
         {
             const string source = @"
 using System.Text.Json;
-using Microsoft.Extensions.Caching.Distributed;
+using RedisCacheManager.Caching;
 
 namespace TestApp
 {
     public class UserProfileService
     {
-        private readonly IDistributedCache _cache;
+        private readonly ICacheManager _cache;
 
-        public UserProfileService(IDistributedCache cache)
+        public UserProfileService(ICacheManager cache)
         {
             _cache = cache;
         }
@@ -54,7 +46,7 @@ namespace TestApp
         }
 
         [Fact]
-        public async Task WhenCacheSerializerClassCallsJsonSerializerThenNoDiagnosticIsReported()
+        public async Task WhenClassDoesNotUseICacheManagerThenNoDiagnosticIsReported()
         {
             const string source = @"
 using System.Text.Json;
@@ -65,9 +57,6 @@ namespace TestApp
     {
         public static byte[] Serialize<T>(T value)
             => JsonSerializer.SerializeToUtf8Bytes(value);
-
-        public static T? Deserialize<T>(byte[]? data)
-            => data is null ? default : JsonSerializer.Deserialize<T>(data);
     }
 }
 ";
