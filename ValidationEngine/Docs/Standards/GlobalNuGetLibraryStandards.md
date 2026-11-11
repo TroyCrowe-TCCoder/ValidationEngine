@@ -1,11 +1,11 @@
 # NuGet Library Standards
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 **Status:** Active
 **Applies To:** All repositories under the GlobalStandards governance model that produce or consume internal NuGet packages
 **Audience:** AI models and human developers
 **Created:** 2026-07-12
-**Last Modified:** 2026-08-16
+**Last Modified:** 2026-11-11
 
 ---
 <!-- STD-MARKER: nuget-library.file -->
@@ -89,6 +89,7 @@ Every shared library project must declare the following metadata in its `.csproj
 - `<Description>`
 - `<RepositoryUrl>`
 - `<RepositoryType>`
+- `<PackageLicenseExpression>` or `<PackageLicenseFile>`
 - `<GenerateDocumentationFile>`
 - `<Nullable>`
 - `<ImplicitUsings>`
@@ -111,6 +112,8 @@ A conforming example is:
 ```
 
 `<Description>` must describe the capability the package provides. It must not repeat the package name only.
+
+Every shared library package must supply a license. Use `<PackageLicenseExpression>` with an SPDX identifier, for example `MIT`, or `<PackageLicenseFile>` with the license file included in the package. `MIT` is the default unless an approved deviation documents a different license. A package that ships without a license is not conforming and must not be published.
 
 ### 4.2 Required Build Properties
 <!-- STD-MARKER: nuget-library.4.2 -->
@@ -275,6 +278,8 @@ A conforming command shape is:
 dotnet pack HttpClientManager/HttpClientManager.csproj --configuration Release --no-build --output ./artifacts
 ```
 
+Before a package is published, the produced `.nupkg` must be verified. Packages must be restored before packing, because packing without a current restore can record stale dependencies in the package. The verification must confirm that the `.nuspec` inside the package lists only the intended dependencies at the intended versions, that the license is present, and that the package version matches the version declared in the project file. Verification may be performed by inspecting the `.nuspec` in the package and must be part of the governed pipeline where one applies.
+
 ### 8.3 Publication Target
 <!-- STD-MARKER: nuget-library.8.3 -->
 
@@ -351,6 +356,8 @@ Major-version lag must not be allowed to accumulate without an explicitly tracke
 - [ ] Consuming repositories use shared libraries through NuGet packages rather than committed project references or direct DLL references.
 - [ ] The repository name, solution name, project name, assembly name, and package ID match for each single-library repository unless an approved deviation documents a different rule.
 - [ ] Every shared library project declares the required NuGet metadata fields in the project file.
+- [ ] Every shared library package supplies a license, defaulting to `MIT` unless an approved deviation documents otherwise.
+- [ ] The packed `.nupkg` is verified after a current restore: dependencies, license, and version in the `.nuspec` match the intent.
 - [ ] Deterministic build and CI build properties are enabled.
 - [ ] SourceLink and symbol package generation are enabled.
 - [ ] Public service types exposed for DI have corresponding interfaces.
