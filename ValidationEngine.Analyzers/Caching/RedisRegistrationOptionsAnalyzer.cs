@@ -9,7 +9,7 @@ namespace ValidationEngine.Analyzers.Caching
 {
     /// <summary>
     /// Enforces GlobalCachingStandards.md caching.3: the cache must be registered with
-    /// <c>AddRedisCacheManager(builder.Configuration)</c>. Registering Redis through
+    /// <c>AddRedisCacheManager(options => ...)</c>, with every option value supplied by the host. Registering Redis through
     /// <c>AddStackExchangeRedisCache</c> is not permitted; the TCCoder.RedisCacheManager package owns the
     /// connection, retry and options.
     /// </summary>
@@ -24,10 +24,10 @@ namespace ValidationEngine.Analyzers.Caching
             "Redis must be registered with AddRedisCacheManager";
 
         private static readonly LocalizableString MessageFormat =
-            "AddStackExchangeRedisCache is not permitted; register the cache with AddRedisCacheManager(builder.Configuration), per GlobalCachingStandards.md caching.3";
+            "AddStackExchangeRedisCache is not permitted; register the cache with AddRedisCacheManager(options => ...), per GlobalCachingStandards.md caching.3";
 
         private static readonly LocalizableString Description =
-            "The cache must be registered with AddRedisCacheManager(builder.Configuration) from the " +
+            "The cache must be registered with AddRedisCacheManager(options => ...) from the " +
             "TCCoder.RedisCacheManager package. Registering Redis through AddStackExchangeRedisCache is not " +
             "permitted. See GlobalCachingStandards.md Section 3.";
 

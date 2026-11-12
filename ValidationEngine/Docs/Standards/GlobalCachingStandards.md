@@ -85,22 +85,35 @@ No other cache provider or cache abstraction may be introduced without an approv
 <!-- STD-MARKER: caching.3.1 -->
 
 ```csharp
-// Required — registration in Program.cs
+// Required — registration in Program.cs; the host supplies every option value in code
 // Registers ICacheManager, the Redis connection, the key builder, the distributed lock helper, and the Redis health check
-builder.Services.AddRedisCacheManager(builder.Configuration);
+var redis = builder.Configuration.GetSection("Redis");
+
+builder.Services.AddRedisCacheManager(options =>
+{
+    options.HostName = redis["HostName"]!;
+    options.Port = redis.GetValue<int>("Port");
+    options.UseSsl = true;
+    options.InstanceName = "MyApp";
+    options.KeyVaultUri = redis["KeyVaultUri"]!;
+    options.AccessKeySecretName = "redis-access-key";
+    options.DefaultTtl = TimeSpan.FromMinutes(15);
+    options.MaxRetryAttempts = 3;
+    options.RetryBaseDelay = TimeSpan.FromMilliseconds(100);
+    options.ConnectTimeout = TimeSpan.FromSeconds(5);
+});
 ```
 
-The package binds its options from the `RedisCacheManager` configuration section. The Redis access key must be resolved from Azure Key Vault at startup — it must never be stored in configuration or committed to source control. The package supplies connection retry with exponential backoff and does not fail application startup when Redis is temporarily unavailable, so consuming applications must not add their own Redis connection or retry configuration.
+The package follows the two-part configuration model: it defines the options and the host supplies every value. The package has no defaults, reads no `IConfiguration`, environment variables or files, and owns no configuration section name. The `Redis` section above belongs to the host and its name is the host's choice. Options are validated when the host starts, and the host fails to start if `HostName`, `Port`, `InstanceName`, `DefaultTtl` or `ConnectTimeout` is missing or invalid, if `MaxRetryAttempts` or `RetryBaseDelay` is negative, or if `KeyVaultUri` is set without `AccessKeySecretName`.
+
+The Redis access key must be resolved from Azure Key Vault at startup — it must never be stored in configuration or committed to source control. `KeyVaultUri` and `AccessKeySecretName` must both be set for any shared or cloud-hosted Redis. The package supplies connection retry with exponential backoff and does not fail application startup when Redis is temporarily unavailable, so consuming applications must not add their own Redis connection or retry configuration.
 
 ```json
 {
-  "RedisCacheManager": {
+  "Redis": {
     "HostName": "myapp-cache.redis.cache.windows.net",
     "Port": 6380,
-    "KeyVaultUri": "https://myvault.vault.azure.net/",
-    "AccessKeySecretName": "redis-access-key",
-    "InstanceName": "MyApp",
-    "UseSsl": true
+    "KeyVaultUri": "https://myvault.vault.azure.net/"
   }
 }
 ```
@@ -589,7 +602,7 @@ The following data categories must never be written to any cache:
 ### 10.2 Cache Connection Security
 <!-- STD-MARKER: caching.10.2 -->
 
-The Redis connection must use TLS. Non-TLS Redis connections are not permitted in any environment including local development when connecting to a shared or cloud-hosted Redis instance. `RedisCacheOptions.UseSsl` defaults to `true` and must not be set to `false` outside a local, non-shared Redis instance. Azure Cache for Redis enforces TLS by default — this must not be disabled.
+`RedisCacheOptions.UseSsl` has no default and the package does not validate it, so the host must set it to `true` and must not set it to `false` outside a local, non-shared Redis instance.
 
 ---
 
@@ -605,7 +618,7 @@ Both human developers and AI models must run this checklist before marking any c
 
 **Cache provider:**
 - [ ] Azure Cache for Redis is accessed only through `TCCoder.RedisCacheManager` — `IMemoryCache` and `IDistributedCache` are not used.
-- [ ] `TCCoder.RedisCacheManager` is consumed as a `PackageReference` and registered with `AddRedisCacheManager(builder.Configuration)`.
+- [ ] `TCCoder.RedisCacheManager` is consumed as a `PackageReference` and registered with `AddRedisCacheManager(options => ...)`, with every option value supplied by the host in code.
 - [ ] The access key is read from Key Vault through `KeyVaultUri` and `AccessKeySecretName` — no key or connection string is hardcoded or stored in configuration files.
 - [ ] No application-side Redis connection, retry policy or `StackExchange.Redis` client usage exists.
 - [ ] All services inject `ICacheManager`.
