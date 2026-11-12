@@ -16,8 +16,15 @@ namespace TestApp
 {
     public static class CacheManagerRegistrationExtensions
     {
-        public static IServiceCollection AddRedisCacheManager(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddRedisCacheManager(this IServiceCollection services, System.Action<CacheManagerOptions> configure)
             => services;
+    }
+
+    public sealed class CacheManagerOptions
+    {
+        public string HostName { get; set; } = string.Empty;
+        public int Port { get; set; }
+        public bool UseSsl { get; set; }
     }
 
     public class ServiceCollectionExtensionsHost
@@ -90,7 +97,12 @@ namespace TestApp
         public async Task WhenAddRedisCacheManagerIsUsedThenNoDiagnosticIsReported()
         {
             const string body = @"
-            services.AddRedisCacheManager(configuration);
+            services.AddRedisCacheManager(options =>
+            {
+                options.HostName = configuration[""Redis:HostName""];
+                options.Port = 6380;
+                options.UseSsl = true;
+            });
 ";
 
             var test = CreateTest(body);
